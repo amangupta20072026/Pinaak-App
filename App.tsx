@@ -1,10 +1,8 @@
 import React from 'react';
-import { StatusBar } from 'react-native';
-import {
-  SafeAreaProvider,
-} from 'react-native-safe-area-context';
+import {StatusBar} from 'react-native';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 
-import SplashScreen from './src/features/auth/SplashScreen';
+import OnboardingScreen from './src/features/auth/OnboardingScreen';
 
 const App = (): React.JSX.Element => {
   return (
@@ -15,7 +13,7 @@ const App = (): React.JSX.Element => {
         translucent={false}
       />
 
-      <SplashScreen />
+      <OnboardingScreen />
     </SafeAreaProvider>
   );
 };
