@@ -2,15 +2,9 @@
  * ------------------------------------------------------------------
  * Urban Cruise — Onboarding
  * ------------------------------------------------------------------
- * Two-slide onboarding flow with:
- *   - Horizontal swipe via react-native-pager-view
- *   - Reanimated 4 pagination dots driven by page scroll progress
- *   - Skip on non-final slides, Get Started on the last slide
- *   - Auto-advance every `autoAdvanceMs` (default 5s) on non-final
- *     slides; cancelled permanently on the first manual swipe and
- *     paused when the app is backgrounded
- *   - Inline SVG feature icons (no icon lib dependency)
- *   - All values sourced from @/theme tokens
+ * Two-slide onboarding flow. On Skip or Get Started, navigates to
+ * the role-picker screen (OnboardingDashboard). Auto-advance is
+ * cancelled on manual swipe and paused when the app is backgrounded.
  * ------------------------------------------------------------------
  */
 
@@ -48,6 +42,8 @@ import PagerView, {
   PagerViewOnPageSelectedEvent,
 } from 'react-native-pager-view';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import {
   Colors,
@@ -56,19 +52,20 @@ import {
   Shadows,
   Spacing,
   Typography,
-} from '../../theme';
+} from '../../../theme';
+import type { OnboardingStackParamList } from '../../../navigation/types';
+
+type Navigation = NativeStackNavigationProp<
+  OnboardingStackParamList,
+  'Onboarding'
+>;
 
 /* -----------------------------------------------------------------
  * Types
  * ----------------------------------------------------------------- */
 
 type IconTint = 'primary' | 'secondary';
-
-type FeatureIconProps = {
-  color: string;
-  size: number;
-};
-
+type FeatureIconProps = { color: string; size: number };
 type Feature = {
   id: string;
   title: string;
@@ -78,25 +75,11 @@ type Feature = {
 };
 
 export type OnboardingScreenProps = {
-  /**
-   * Called when the user completes onboarding via
-   * either "Skip" or "Get Started".
-   */
-  onComplete?: () => void;
-
-  /**
-   * Interval in milliseconds before auto-advancing to the next slide.
-   * Pass `0` or `null` to disable auto-advance.
-   * Auto-advance is cancelled permanently after the first manual swipe
-   * and paused when the app is backgrounded.
-   *
-   * @default 5000
-   */
   autoAdvanceMs?: number | null;
 };
 
 /* -----------------------------------------------------------------
- * SVG Icons (inline — swap out for asset SVGs when available)
+ * SVG Icons
  * ----------------------------------------------------------------- */
 
 const ShieldIcon: React.FC<FeatureIconProps> = ({ color, size }) => (
@@ -178,44 +161,14 @@ const SLIDE_COUNT = 2;
 const AUTO_ADVANCE_DEFAULT_MS = 5000;
 
 const FEATURES: Feature[] = [
-  {
-    id: 'safe',
-    title: 'Safe & Reliable',
-    description: 'Well maintained buses for your safety',
-    Icon: ShieldIcon,
-    tint: 'primary',
-  },
-  {
-    id: 'drivers',
-    title: 'Professional Drivers',
-    description: 'Experienced & verified chauffeurs',
-    Icon: PersonIcon,
-    tint: 'secondary',
-  },
-  {
-    id: 'pan-india',
-    title: 'Pan India Service',
-    description: 'Available in 100+ cities across India',
-    Icon: MapPinIcon,
-    tint: 'primary',
-  },
-  {
-    id: 'support',
-    title: '24/7 Support',
-    description: "We're here to assist you anytime",
-    Icon: HeadsetIcon,
-    tint: 'secondary',
-  },
+  { id: 'safe', title: 'Safe & Reliable', description: 'Well maintained buses for your safety', Icon: ShieldIcon, tint: 'primary' },
+  { id: 'drivers', title: 'Professional Drivers', description: 'Experienced & verified chauffeurs', Icon: PersonIcon, tint: 'secondary' },
+  { id: 'pan-india', title: 'Pan India Service', description: 'Available in 100+ cities across India', Icon: MapPinIcon, tint: 'primary' },
+  { id: 'support', title: '24/7 Support', description: "We're here to assist you anytime", Icon: HeadsetIcon, tint: 'secondary' },
 ];
 
-/* -----------------------------------------------------------------
- * Helpers
- * ----------------------------------------------------------------- */
-
-/** Append an alpha channel to a #RRGGBB color string. */
 const withAlpha = (hex: string, alpha: number): string => {
-  const clamped = Math.max(0, Math.min(1, alpha));
-  const suffix = Math.round(clamped * 255)
+  const suffix = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
     .toString(16)
     .padStart(2, '0');
   return `${hex}${suffix}`;
@@ -225,16 +178,10 @@ const withAlpha = (hex: string, alpha: number): string => {
  * Feature Card
  * ----------------------------------------------------------------- */
 
-type FeatureCardProps = {
-  feature: Feature;
-  index: number;
-};
-
-const FeatureCard: React.FC<FeatureCardProps> = memo(
+const FeatureCard: React.FC<{ feature: Feature; index: number }> = memo(
   ({ feature, index }) => {
     const { Icon, title, description, tint } = feature;
-    const iconColor =
-      tint === 'primary' ? Colors.primary : Colors.secondary;
+    const iconColor = tint === 'primary' ? Colors.primary : Colors.secondary;
     const iconBg = withAlpha(iconColor, 0.14);
 
     return (
@@ -242,17 +189,11 @@ const FeatureCard: React.FC<FeatureCardProps> = memo(
         entering={FadeInUp.delay(400 + index * 90).duration(500)}
         style={styles.card}
       >
-        <View
-          style={[styles.cardIconWrap, { backgroundColor: iconBg }]}
-        >
+        <View style={[styles.cardIconWrap, { backgroundColor: iconBg }]}>
           <Icon color={iconColor} size={Dimensions.iconMd} />
         </View>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {description}
-        </Text>
+        <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.cardDescription} numberOfLines={2}>{description}</Text>
       </Animated.View>
     );
   },
@@ -263,52 +204,38 @@ FeatureCard.displayName = 'FeatureCard';
  * Pagination
  * ----------------------------------------------------------------- */
 
-type PaginationDotProps = {
-  index: number;
-  progress: SharedValue<number>;
-};
-
 const DOT_ACTIVE_WIDTH = 24;
 const DOT_INACTIVE_WIDTH = 8;
 const DOT_HEIGHT = 8;
 
-const PaginationDot: React.FC<PaginationDotProps> = ({
-  index,
-  progress,
-}) => {
+const PaginationDot: React.FC<{
+  index: number;
+  progress: SharedValue<number>;
+}> = ({ index, progress }) => {
   const animatedStyle = useAnimatedStyle(() => {
     const distance = Math.abs(progress.value - index);
-    const width = interpolate(
-      distance,
-      [0, 1],
-      [DOT_ACTIVE_WIDTH, DOT_INACTIVE_WIDTH],
-      Extrapolation.CLAMP,
-    );
-    const backgroundColor = interpolateColor(
-      distance,
-      [0, 1],
-      [Colors.primary, Colors.border],
-    );
-    return { width, backgroundColor };
+    return {
+      width: interpolate(
+        distance,
+        [0, 1],
+        [DOT_ACTIVE_WIDTH, DOT_INACTIVE_WIDTH],
+        Extrapolation.CLAMP,
+      ),
+      backgroundColor: interpolateColor(
+        distance,
+        [0, 1],
+        [Colors.primary, Colors.border],
+      ),
+    };
   });
 
-  return (
-    <Animated.View
-      style={[styles.dot, animatedStyle]}
-      accessibilityRole="tab"
-    />
-  );
+  return <Animated.View style={[styles.dot, animatedStyle]} accessibilityRole="tab" />;
 };
 
-type PaginationProps = {
+const Pagination: React.FC<{
   count: number;
   progress: SharedValue<number>;
-};
-
-const Pagination: React.FC<PaginationProps> = ({
-  count,
-  progress,
-}) => (
+}> = ({ count, progress }) => (
   <View
     style={styles.pagination}
     accessibilityRole="tablist"
@@ -321,28 +248,22 @@ const Pagination: React.FC<PaginationProps> = ({
 );
 
 /* -----------------------------------------------------------------
- * Slide 1 — Brand
+ * Slides
  * ----------------------------------------------------------------- */
 
 const SlideOne: React.FC = memo(() => (
   <View style={styles.slide} collapsable={false}>
     <View style={styles.slideOneContent}>
-      <Animated.View
-        entering={FadeIn.duration(700)}
-        style={styles.brandBlock}
-      >
+      <Animated.View entering={FadeIn.duration(700)} style={styles.brandBlock}>
         <Image
-          source={require('../../assets/images/ucwithdesignandtext.png')}
+          source={require('../../../assets/images/ucwithdesignandtext.png')}
           style={styles.brandLogo}
           resizeMode="contain"
           accessibilityLabel="Urban Cruise — Car & Bus Rentals"
         />
       </Animated.View>
 
-      <Animated.View
-        entering={FadeInUp.delay(250).duration(600)}
-        style={styles.taglineBlock}
-      >
+      <Animated.View entering={FadeInUp.delay(250).duration(600)} style={styles.taglineBlock}>
         <Text style={styles.taglineLine} accessibilityRole="header">
           <Text style={styles.taglineAccent}>India's </Text>
           <Text style={styles.taglineDark}>Most </Text>
@@ -358,10 +279,6 @@ const SlideOne: React.FC = memo(() => (
   </View>
 ));
 SlideOne.displayName = 'SlideOne';
-
-/* -----------------------------------------------------------------
- * Slide 2 — Value proposition
- * ----------------------------------------------------------------- */
 
 const SlideTwo: React.FC = memo(() => (
   <View style={styles.slide} collapsable={false}>
@@ -380,12 +297,9 @@ const SlideTwo: React.FC = memo(() => (
         </Text>
       </Animated.View>
 
-      <Animated.View
-        entering={FadeIn.delay(200).duration(700)}
-        style={styles.heroWrap}
-      >
+      <Animated.View entering={FadeIn.delay(200).duration(700)} style={styles.heroWrap}>
         <Image
-          source={require('../../assets/images/urban-cruise-bus-onboarding-image.png')}
+          source={require('../../../assets/images/urban-cruise-bus-onboarding-image.png')}
           style={styles.hero}
           resizeMode="cover"
           accessibilityLabel="Urban Cruise bus on a city highway"
@@ -412,23 +326,16 @@ SlideTwo.displayName = 'SlideTwo';
  * ----------------------------------------------------------------- */
 
 const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
-  onComplete,
   autoAdvanceMs = AUTO_ADVANCE_DEFAULT_MS,
 }) => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<Navigation>();
   const pagerRef = useRef<PagerView>(null);
   const progress = useSharedValue(0);
   const [page, setPage] = useState(0);
 
   const isLastPage = page === SLIDE_COUNT - 1;
 
-  /* --------------------------------------------------------------
-   * Auto-advance timer
-   * --------------------------------------------------------------
-   * Refs (not state) hold timer state so callbacks stay stable and
-   * we avoid re-render loops. `userInteractedRef` sticks at `true`
-   * for the rest of the session once the user swipes manually.
-   * ------------------------------------------------------------ */
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userInteractedRef = useRef(false);
   const pageRef = useRef(0);
@@ -442,7 +349,6 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
   const scheduleAdvance = useCallback(() => {
     clearTimer();
-
     if (!autoAdvanceMs || autoAdvanceMs <= 0) return;
     if (userInteractedRef.current) return;
     if (pageRef.current >= SLIDE_COUNT - 1) return;
@@ -455,9 +361,6 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     }, autoAdvanceMs);
   }, [autoAdvanceMs, clearTimer]);
 
-  /* --------------------------------------------------------------
-   * Pager events
-   * ------------------------------------------------------------ */
   const onPageScroll = useCallback(
     (e: PagerViewOnPageScrollEvent) => {
       const { position, offset } = e.nativeEvent;
@@ -466,17 +369,12 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     [progress],
   );
 
-  const onPageSelected = useCallback(
-    (e: PagerViewOnPageSelectedEvent) => {
-      setPage(e.nativeEvent.position);
-    },
-    [],
-  );
+  const onPageSelected = useCallback((e: PagerViewOnPageSelectedEvent) => {
+    setPage(e.nativeEvent.position);
+  }, []);
 
   const onPageScrollStateChanged = useCallback(
     (e: PageScrollStateChangedNativeEvent) => {
-      // 'dragging' only fires on real finger drag — programmatic
-      // setPage() goes straight to 'settling'. Perfect signal.
       if (e.nativeEvent.pageScrollState === 'dragging') {
         userInteractedRef.current = true;
         clearTimer();
@@ -485,63 +383,41 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     [clearTimer],
   );
 
-  /* --------------------------------------------------------------
-   * Effects
-   * ------------------------------------------------------------ */
-  // Re-schedule whenever the page changes (mount, auto-advance, swipe).
   useEffect(() => {
     pageRef.current = page;
     scheduleAdvance();
     return clearTimer;
   }, [page, scheduleAdvance, clearTimer]);
 
-  // Pause when backgrounded, resume when foregrounded.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        scheduleAdvance();
-      } else {
-        clearTimer();
-      }
+      if (nextState === 'active') scheduleAdvance();
+      else clearTimer();
     });
     return () => sub.remove();
   }, [scheduleAdvance, clearTimer]);
 
-  // Belt-and-braces cleanup on unmount.
   useEffect(() => clearTimer, [clearTimer]);
 
-  /* --------------------------------------------------------------
-   * CTAs
-   * ------------------------------------------------------------ */
-  const handleSkip = useCallback(() => {
+  const goToRolePicker = useCallback(() => {
     userInteractedRef.current = true;
     clearTimer();
-    onComplete?.();
-  }, [clearTimer, onComplete]);
-
-  const handleGetStarted = useCallback(() => {
-    userInteractedRef.current = true;
-    clearTimer();
-    onComplete?.();
-  }, [clearTimer, onComplete]);
+    navigation.navigate('OnboardingDashboard');
+  }, [clearTimer, navigation]);
 
   const topPad = Math.max(insets.top, Spacing.md);
   const bottomPad = Math.max(insets.bottom, Spacing.md);
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
-      {/* Top bar / Skip */}
       <View style={styles.topBar}>
         {!isLastPage ? (
           <Pressable
-            onPress={handleSkip}
+            onPress={goToRolePicker}
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Skip onboarding"
-            style={({ pressed }) => [
-              styles.skip,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
           >
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
@@ -550,7 +426,6 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
         )}
       </View>
 
-      {/* Pager */}
       <PagerView
         ref={pagerRef}
         style={styles.pager}
@@ -568,20 +443,16 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
         </View>
       </PagerView>
 
-      {/* Footer */}
       <View style={[styles.footer, { paddingBottom: bottomPad }]}>
         <Pagination count={SLIDE_COUNT} progress={progress} />
 
         {isLastPage ? (
           <Animated.View entering={FadeInUp.duration(400)}>
             <Pressable
-              onPress={handleGetStarted}
+              onPress={goToRolePicker}
               accessibilityRole="button"
               accessibilityLabel="Get started"
-              style={({ pressed }) => [
-                styles.cta,
-                pressed && styles.ctaPressed,
-              ]}
+              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
             >
               <Text style={styles.ctaText}>Get Started</Text>
             </Pressable>
@@ -601,12 +472,8 @@ export default OnboardingScreen;
  * ----------------------------------------------------------------- */
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
 
-  /* Top bar */
   topBar: {
     height: Dimensions.headerHeight - Spacing.sm,
     paddingHorizontal: Dimensions.screenHorizontalPadding,
@@ -620,82 +487,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  skipPlaceholder: {
-    height: Dimensions.touchTargetMinimum,
-  },
-  skipText: {
-    ...Typography.label,
-    color: Colors.primary,
-    fontSize: 15,
-  },
-  pressed: {
-    opacity: 0.55,
-  },
+  skipPlaceholder: { height: Dimensions.touchTargetMinimum },
+  skipText: { ...Typography.label, color: Colors.primary, fontSize: 15 },
+  pressed: { opacity: 0.55 },
 
-  /* Pager */
-  pager: {
-    flex: 1,
-  },
-  page: {
-    flex: 1,
-  },
-  slide: {
-    flex: 1,
-    paddingHorizontal: Dimensions.screenHorizontalPadding,
-  },
+  pager: { flex: 1 },
+  page: { flex: 1 },
+  slide: { flex: 1, paddingHorizontal: Dimensions.screenHorizontalPadding },
 
-  /* Slide 1 */
-  slideOneContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandBlock: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  brandLogo: {
-    width: '85%',
-    height: 220,
-  },
-  taglineBlock: {
-    marginTop: Spacing.huge,
-    alignItems: 'center',
-  },
-  taglineLine: {
-    ...Typography.h4,
-    textAlign: 'center',
-  },
-  taglinePrimary: {
-    color: Colors.primary,
-    fontWeight: '700',
-  },
-  taglineAccent: {
-    color: Colors.accent,
-    fontWeight: '700',
-  },
-  taglineDark: {
-    color: Colors.textPrimary,
-    fontWeight: '600',
-  },
+  slideOneContent: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  brandBlock: { width: '100%', alignItems: 'center' },
+  brandLogo: { width: '85%', height: 220 },
+  taglineBlock: { marginTop: Spacing.huge, alignItems: 'center' },
+  taglineLine: { ...Typography.h4, textAlign: 'center' },
+  taglinePrimary: { color: Colors.primary, fontWeight: '700' },
+  taglineAccent: { color: Colors.accent, fontWeight: '700' },
+  taglineDark: { color: Colors.textPrimary, fontWeight: '600' },
 
-  /* Slide 2 */
-  slideTwoScroll: {
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
-  },
-  headline: {
-    ...Typography.h3,
-    textAlign: 'center',
-  },
-  headlinePrimary: {
-    color: Colors.primary,
-    fontWeight: '700',
-  },
-  headlineAccent: {
-    color: Colors.accent,
-    fontWeight: '700',
-  },
+  slideTwoScroll: { paddingTop: Spacing.sm, paddingBottom: Spacing.lg },
+  headline: { ...Typography.h3, textAlign: 'center' },
+  headlinePrimary: { color: Colors.primary, fontWeight: '700' },
+  headlineAccent: { color: Colors.accent, fontWeight: '700' },
   description: {
     ...Typography.body,
     color: Colors.textSecondary,
@@ -709,20 +521,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: Colors.backgroundSecondary,
   },
-  hero: {
-    width: '100%',
-    height: 200,
-  },
+  hero: { width: '100%', height: 200 },
 
-  /* Feature grid */
-  grid: {
-    marginTop: Spacing.lg,
-    gap: Spacing.md,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
+  grid: { marginTop: Spacing.lg, gap: Spacing.md },
+  gridRow: { flexDirection: 'row', gap: Spacing.md },
   card: {
     flex: 1,
     backgroundColor: Colors.surface,
@@ -756,7 +558,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  /* Footer */
   footer: {
     paddingHorizontal: Dimensions.screenHorizontalPadding,
     paddingTop: Spacing.md,
@@ -768,12 +569,8 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     marginBottom: Spacing.lg,
   },
-  dot: {
-    height: DOT_HEIGHT,
-    borderRadius: Radius.pill,
-  },
+  dot: { height: DOT_HEIGHT, borderRadius: Radius.pill },
 
-  /* CTA */
   cta: {
     height: Dimensions.buttonHeightLarge,
     backgroundColor: Colors.primary,
@@ -782,15 +579,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Shadows.md,
   },
-  ctaPressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.99 }],
-  },
-  ctaText: {
-    ...Typography.button,
-    color: Colors.buttonPrimaryText,
-  },
-  ctaSpacer: {
-    height: Dimensions.buttonHeightLarge,
-  },
+  ctaPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
+  ctaText: { ...Typography.button, color: Colors.buttonPrimaryText },
+  ctaSpacer: { height: Dimensions.buttonHeightLarge },
 });
