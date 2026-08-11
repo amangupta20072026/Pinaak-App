@@ -3,13 +3,14 @@
  * App root
  * ------------------------------------------------------------------
  * Provider stack (outermost → innermost):
- *   GestureHandlerRootView   — required by react-native-gesture-handler
- *   Provider (redux)         — dispatch / selector everywhere
- *   PersistGate              — waits for MMKV rehydration before render
- *   SafeAreaProvider         — insets available to every screen
- *   BottomSheetModalProvider — enables imperative bottom sheets anywhere
- *   NavigationContainer      — with navigationRef for imperative nav
- *     RootNavigator          — branches on Redux state
+ *   GestureHandlerRootView    — required by react-native-gesture-handler
+ *   Provider (redux)          — dispatch / selector everywhere
+ *   PersistGate               — waits for MMKV rehydration before render
+ *   SafeAreaProvider          — insets available to every screen
+ *   KeyboardProvider          — enables keyboard-aware components anywhere
+ *   BottomSheetModalProvider  — enables imperative bottom sheets anywhere
+ *   NavigationContainer       — with navigationRef for imperative nav
+ *     RootNavigator           — branches on Redux state
  * ------------------------------------------------------------------
  */
 
@@ -21,6 +22,7 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { store, persistor } from './src/store';
 import { navigationRef } from './src/navigation/NavigationService';
@@ -39,16 +41,18 @@ const App: React.FC = () => {
       <Provider store={store}>
         <PersistGate loading={<SplashLoader />} persistor={persistor}>
           <SafeAreaProvider>
-            <BottomSheetModalProvider>
-              <StatusBar
-                barStyle="dark-content"
-                backgroundColor={Colors.background}
-                translucent={false}
-              />
-              <NavigationContainer ref={navigationRef}>
-                <RootNavigator />
-              </NavigationContainer>
-            </BottomSheetModalProvider>
+            <KeyboardProvider>
+              <BottomSheetModalProvider>
+                <StatusBar
+                  barStyle="dark-content"
+                  backgroundColor={Colors.background}
+                  translucent={false}
+                />
+                <NavigationContainer ref={navigationRef}>
+                  <RootNavigator />
+                </NavigationContainer>
+              </BottomSheetModalProvider>
+            </KeyboardProvider>
           </SafeAreaProvider>
         </PersistGate>
       </Provider>

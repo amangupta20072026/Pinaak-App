@@ -1,3 +1,4 @@
+/* eslint-disable no-void */
 /**
  * ------------------------------------------------------------------
  * LoginScreen — Production
@@ -6,6 +7,13 @@
  * fallback for the very first render after navigation. Tapping
  * "Change" opens a bottom sheet that dispatches selectRole(new)
  * on confirm — RootNavigator does NOT swap back to onboarding.
+ *
+ * Keyboard behavior:
+ *   Uses KeyboardAwareScrollView from react-native-keyboard-controller.
+ *   The library sets up native keyboard listeners at module init
+ *   (before any component mounts), so cold-start races don't happen.
+ *   `bottomOffset` gives breathing room between the focused input
+ *   and the top of the keyboard.
  * ------------------------------------------------------------------
  */
 
@@ -13,17 +21,15 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
   Linking,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -90,7 +96,7 @@ const UC_LOGO = require('../../assets/icons/ucwithtext.png');
  * Helpers
  * ----------------------------------------------------------------- */
 
-const phoneResolver: Resolver<PhoneForm> = async (values) => {
+const phoneResolver: Resolver<PhoneForm> = async values => {
   const result = phoneSchema.safeParse(values);
   if (result.success) {
     return { values: result.data, errors: {} };
@@ -211,10 +217,7 @@ const LoginScreen: React.FC = () => {
   const { params } = useRoute<LoginRoute>();
   const navigation = useNavigation<LoginNavProp>();
 
-  // Redux is the authoritative source. Route param is only a fallback
-  // for the first render right after navigation, in case Redux is
-  // somehow null (shouldn't happen given the onboarding flow).
-  const roleFromStore = useAppSelector((s) => s.app.selectedRole);
+  const roleFromStore = useAppSelector(s => s.app.selectedRole);
   const role: UserRole = roleFromStore ?? params.role;
   const meta = ROLE_MAP[role] ?? {
     shortLabel: role,
@@ -257,7 +260,9 @@ const LoginScreen: React.FC = () => {
         try {
           // TODO: replace with real OTP send mutation, then
           //   navigation.navigate('OtpVerification', { role, phone });
-          await new Promise((r) => setTimeout(r, 400));
+          await new Promise<void>(resolve => {
+            setTimeout(() => resolve(), 400);
+          });
           dispatch(loginSuccess({ role }));
           void phone;
         } finally {
@@ -272,11 +277,8 @@ const LoginScreen: React.FC = () => {
   const bottomPad = Math.max(insets.bottom, Spacing.md);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
+    <View style={styles.flex}>
+      <KeyboardAwareScrollView
         style={styles.flex}
         contentContainerStyle={[
           styles.scroll,
@@ -284,6 +286,7 @@ const LoginScreen: React.FC = () => {
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bottomOffset={20}
       >
         {/* Logo */}
         <Animated.View entering={FadeIn.duration(450)} style={styles.logoWrap}>
@@ -353,10 +356,7 @@ const LoginScreen: React.FC = () => {
                 const hasError = !!errors.phone;
                 return (
                   <View
-                    style={[
-                      styles.inputRow,
-                      hasError && styles.inputRowError,
-                    ]}
+                    style={[styles.inputRow, hasError && styles.inputRowError]}
                   >
                     <Pressable
                       style={styles.ccButton}
@@ -364,10 +364,7 @@ const LoginScreen: React.FC = () => {
                       accessibilityLabel="Country code +91"
                     >
                       <Text style={styles.ccText}>{COUNTRY_CODE}</Text>
-                      <ChevronDownIcon
-                        color={Colors.textSecondary}
-                        size={14}
-                      />
+                      <ChevronDownIcon color={Colors.textSecondary} size={14} />
                     </Pressable>
                     <View style={styles.inputDivider} />
                     <View style={styles.phoneInputWrap}>
@@ -381,7 +378,7 @@ const LoginScreen: React.FC = () => {
                         textContentType="telephoneNumber"
                         maxLength={10}
                         value={value}
-                        onChangeText={(t) => onChange(t.replace(/\D/g, ''))}
+                        onChangeText={t => onChange(t.replace(/\D/g, ''))}
                         onBlur={onBlur}
                         returnKeyType="done"
                         accessibilityLabel="Mobile number"
@@ -398,6 +395,7 @@ const LoginScreen: React.FC = () => {
               </Text>
             )}
 
+            {/* Send OTP */}
             <Pressable
               onPress={handleSendOtp}
               disabled={!canSubmit}
@@ -420,22 +418,13 @@ const LoginScreen: React.FC = () => {
                       !canSubmit && styles.ctaTextDisabled,
                     ]}
                   >
-                    Send OTP
+                    Login with OTP
                   </Text>
-                  <View style={styles.ctaIcon}>
-                    <ArrowRightIcon
-                      color={
-                        canSubmit
-                          ? Colors.buttonPrimaryText
-                          : Colors.textInverse
-                      }
-                      size={18}
-                    />
-                  </View>
                 </>
               )}
             </Pressable>
 
+            {/* Reassurance */}
             <View style={styles.reassure}>
               <LockIcon color={Colors.textSecondary} size={14} />
               <Text style={styles.reassureText}>
@@ -488,10 +477,11 @@ const LoginScreen: React.FC = () => {
             </Pressable>
           </View>
           <Text style={styles.copyright}>
-            © {new Date().getFullYear()} Urban Cruise India. All rights reserved.
+            © {new Date().getFullYear()} Urban Cruise India. All rights
+            reserved.
           </Text>
         </Animated.View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Role switcher sheet */}
       <RoleSelectionSheet
@@ -499,7 +489,7 @@ const LoginScreen: React.FC = () => {
         currentRole={role}
         onConfirm={handleSheetConfirm}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -518,6 +508,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Dimensions.screenHorizontalPadding,
   },
 
+  /* Logo */
   logoWrap: {
     alignItems: 'center',
     marginTop: Spacing.md,
@@ -528,6 +519,7 @@ const styles = StyleSheet.create({
     height: 140,
   },
 
+  /* Welcome */
   welcome: {
     ...Typography.h1,
     color: Colors.textPrimary,
@@ -546,6 +538,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  /* Selected role card */
   roleCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -598,6 +591,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  /* Mobile Number card */
   formCard: {
     marginTop: Spacing.lg,
     padding: Spacing.lg,
@@ -666,6 +660,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
+  /* CTA */
   cta: {
     marginTop: Spacing.lg,
     height: Dimensions.buttonHeightLarge,
@@ -697,6 +692,7 @@ const styles = StyleSheet.create({
     right: Spacing.md,
   },
 
+  /* Reassurance */
   reassure: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -709,6 +705,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
+  /* Support */
   support: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -725,6 +722,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  /* Legal */
   legal: {
     marginTop: Spacing.xxl,
     alignItems: 'center',
