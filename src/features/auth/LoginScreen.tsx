@@ -57,7 +57,7 @@ import {
   selectRole,
   type UserRole,
 } from '../../store/slices/appSlice';
-import type { AuthStackParamList } from '../../navigation/types';
+import type { AuthParamList } from '../../navigation/types';
 import {
   ROLE_MAP,
   RoleSelectionSheet,
@@ -69,8 +69,8 @@ import {
  * Types & schema
  * ----------------------------------------------------------------- */
 
-type LoginRoute = RouteProp<AuthStackParamList, 'Login'>;
-type LoginNavProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
+type LoginRoute = RouteProp<AuthParamList , 'Login'>;
+type LoginNavProp = NativeStackNavigationProp<AuthParamList , 'Login'>;
 
 const phoneSchema = z.object({
   phone: z

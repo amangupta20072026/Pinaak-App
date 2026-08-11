@@ -1,35 +1,29 @@
-/**
- * AuthNavigator — Login + placeholders for signup / otp / forgot.
- *
- * Reads `selectedRole` from Redux to seed Login's initial params.
- * Once real signup/otp/forgot screens land, swap the Placeholder
- * component out for each.
- */
+// src/navigation/AuthNavigator.tsx
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
 import LoginScreen from '../features/auth/LoginScreen';
 import { Colors, Spacing, Typography } from '../theme';
 import { useAppSelector } from '../store/hooks';
-import type { AuthStackParamList } from './types';
+import type { AuthParamList } from './types';
 
-const Stack = createNativeStackNavigator<AuthStackParamList>();
+const Stack = createNativeStackNavigator<AuthParamList>();
 
-const Placeholder: React.FC<{ label: string }> = ({ label }) => (
-  <View style={styles.placeholder}>
-    <Text style={styles.placeholderText}>{label} — coming soon</Text>
-  </View>
-);
+const Placeholder: React.FC<{ label: string }> = ({ label }) => {
+  return (
+    <View style={styles.placeholder}>
+      <Text style={styles.placeholderText}>{label} — coming soon</Text>
+    </View>
+  );
+};
 
-const OtpScreen = () => <Placeholder label="OTP" />;
+const OtpVerifyScreen: React.FC = () => {
+  return <Placeholder label="OTP Verification" />;
+};
 
 const AuthNavigator: React.FC = () => {
-  // Fall back to 'customer' if we somehow reach auth without a
-  // selected role — shouldn't happen, but safer than crashing.
-  const selectedRole =
-    useAppSelector((s) => s.app.selectedRole) ?? 'customer';
+  const selectedRole = useAppSelector(s => s.app.selectedRole) ?? 'customer';
 
   return (
     <Stack.Navigator
@@ -43,9 +37,12 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="Login"
         component={LoginScreen}
-        initialParams={{ role: selectedRole }}
+        initialParams={{
+          role: selectedRole,
+        }}
       />
-      <Stack.Screen name="Otp" component={OtpScreen} />
+
+      <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
     </Stack.Navigator>
   );
 };
@@ -60,6 +57,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.lg,
   },
+
   placeholderText: {
     ...Typography.subtitle,
     color: Colors.textSecondary,
