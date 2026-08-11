@@ -4,6 +4,7 @@
  * ------------------------------------------------------------------
  * Provider stack (outermost → innermost):
  *   GestureHandlerRootView    — required by react-native-gesture-handler
+ *   QueryClientProvider       — TanStack Query cache available everywhere
  *   Provider (redux)          — dispatch / selector everywhere
  *   PersistGate               — waits for MMKV rehydration before render
  *   SafeAreaProvider          — insets available to every screen
@@ -23,8 +24,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { QueryClientProvider } from '@tanstack/react-query';
 
 import { store, persistor } from './src/store';
+import { queryClient } from '@app/queryClient';
 import { navigationRef } from './src/navigation/NavigationService';
 import RootNavigator from './src/navigation/RootNavigator';
 import { Colors } from './src/theme';
@@ -38,24 +41,26 @@ const SplashLoader: React.FC = () => (
 const App: React.FC = () => {
   return (
     <GestureHandlerRootView style={styles.root}>
-      <Provider store={store}>
-        <PersistGate loading={<SplashLoader />} persistor={persistor}>
-          <SafeAreaProvider>
-            <KeyboardProvider>
-              <BottomSheetModalProvider>
-                <StatusBar
-                  barStyle="dark-content"
-                  backgroundColor={Colors.background}
-                  translucent={false}
-                />
-                <NavigationContainer ref={navigationRef}>
-                  <RootNavigator />
-                </NavigationContainer>
-              </BottomSheetModalProvider>
-            </KeyboardProvider>
-          </SafeAreaProvider>
-        </PersistGate>
-      </Provider>
+      <QueryClientProvider client={queryClient}>
+        <Provider store={store}>
+          <PersistGate loading={<SplashLoader />} persistor={persistor}>
+            <SafeAreaProvider>
+              <KeyboardProvider>
+                <BottomSheetModalProvider>
+                  <StatusBar
+                    barStyle="dark-content"
+                    backgroundColor={Colors.background}
+                    translucent={false}
+                  />
+                  <NavigationContainer ref={navigationRef}>
+                    <RootNavigator />
+                  </NavigationContainer>
+                </BottomSheetModalProvider>
+              </KeyboardProvider>
+            </SafeAreaProvider>
+          </PersistGate>
+        </Provider>
+      </QueryClientProvider>
     </GestureHandlerRootView>
   );
 };

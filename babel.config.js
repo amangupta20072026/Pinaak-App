@@ -7,6 +7,20 @@ module.exports = {
     [
       'module-resolver',
       {
+        root: ['./'],
+        extensions: [
+          '.ios.js',
+          '.android.js',
+          '.js',
+          '.jsx',
+          '.ios.ts',
+          '.android.ts',
+          '.ts',
+          '.ios.tsx',
+          '.android.tsx',
+          '.tsx',
+          '.json',
+        ],
         alias: {
           '@': './src',
           '@app': './src/app',
@@ -20,7 +34,7 @@ module.exports = {
           '@store': './src/store',
           '@rbac': './src/rbac',
           '@navigation': './src/navigation',
-          '@types': './src/types',
+          '@app-types': './src/types',
           '@features': './src/features',
           '@components': './src/components',
         },
