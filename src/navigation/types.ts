@@ -13,7 +13,6 @@ import type { UserRole } from '../store/slices/appSlice';
 /* -------- Onboarding stack -------- */
 export type OnboardingStackParamList = {
   Onboarding: undefined;
-  OnboardingDashboard: undefined;
 };
 
 /* -------- Auth stack -------- */

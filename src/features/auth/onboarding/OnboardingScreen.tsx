@@ -2,19 +2,15 @@
  * ------------------------------------------------------------------
  * Urban Cruise — Onboarding
  * ------------------------------------------------------------------
- * Two-slide onboarding flow. On Skip or Get Started, navigates to
- * the role-picker screen (OnboardingDashboard). Auto-advance is
- * cancelled on manual swipe and paused when the app is backgrounded.
+ * Two-slide onboarding flow. On Skip or Get Started, dispatches
+ * completeOnboarding() — RootNavigator then swaps this stack out for
+ * AuthFlow (if unauthenticated) or the role-specific home stack
+ * (if authenticated). Auto-advance is cancelled on manual swipe and
+ * paused when the app is backgrounded.
  * ------------------------------------------------------------------
  */
 
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   Image,
@@ -42,8 +38,6 @@ import PagerView, {
   PagerViewOnPageSelectedEvent,
 } from 'react-native-pager-view';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import {
   Colors,
@@ -53,12 +47,8 @@ import {
   Spacing,
   Typography,
 } from '../../../theme';
-import type { OnboardingStackParamList } from '../../../navigation/types';
-
-type Navigation = NativeStackNavigationProp<
-  OnboardingStackParamList,
-  'Onboarding'
->;
+import { useAppDispatch } from '../../../store/hooks';
+import { completeOnboarding } from '../../../store/slices/appSlice';
 
 /* -----------------------------------------------------------------
  * Types
@@ -161,10 +151,34 @@ const SLIDE_COUNT = 2;
 const AUTO_ADVANCE_DEFAULT_MS = 5000;
 
 const FEATURES: Feature[] = [
-  { id: 'safe', title: 'Safe & Reliable', description: 'Well maintained buses for your safety', Icon: ShieldIcon, tint: 'primary' },
-  { id: 'drivers', title: 'Professional Drivers', description: 'Experienced & verified chauffeurs', Icon: PersonIcon, tint: 'secondary' },
-  { id: 'pan-india', title: 'Pan India Service', description: 'Available in 100+ cities across India', Icon: MapPinIcon, tint: 'primary' },
-  { id: 'support', title: '24/7 Support', description: "We're here to assist you anytime", Icon: HeadsetIcon, tint: 'secondary' },
+  {
+    id: 'safe',
+    title: 'Safe & Reliable',
+    description: 'Well maintained buses for your safety',
+    Icon: ShieldIcon,
+    tint: 'primary',
+  },
+  {
+    id: 'drivers',
+    title: 'Professional Drivers',
+    description: 'Experienced & verified chauffeurs',
+    Icon: PersonIcon,
+    tint: 'secondary',
+  },
+  {
+    id: 'pan-india',
+    title: 'Pan India Service',
+    description: 'Available in 100+ cities across India',
+    Icon: MapPinIcon,
+    tint: 'primary',
+  },
+  {
+    id: 'support',
+    title: '24/7 Support',
+    description: "We're here to assist you anytime",
+    Icon: HeadsetIcon,
+    tint: 'secondary',
+  },
 ];
 
 const withAlpha = (hex: string, alpha: number): string => {
@@ -192,8 +206,12 @@ const FeatureCard: React.FC<{ feature: Feature; index: number }> = memo(
         <View style={[styles.cardIconWrap, { backgroundColor: iconBg }]}>
           <Icon color={iconColor} size={Dimensions.iconMd} />
         </View>
-        <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
-        <Text style={styles.cardDescription} numberOfLines={2}>{description}</Text>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={styles.cardDescription} numberOfLines={2}>
+          {description}
+        </Text>
       </Animated.View>
     );
   },
@@ -229,7 +247,12 @@ const PaginationDot: React.FC<{
     };
   });
 
-  return <Animated.View style={[styles.dot, animatedStyle]} accessibilityRole="tab" />;
+  return (
+    <Animated.View
+      style={[styles.dot, animatedStyle]}
+      accessibilityRole="tab"
+    />
+  );
 };
 
 const Pagination: React.FC<{
@@ -263,7 +286,10 @@ const SlideOne: React.FC = memo(() => (
         />
       </Animated.View>
 
-      <Animated.View entering={FadeInUp.delay(250).duration(600)} style={styles.taglineBlock}>
+      <Animated.View
+        entering={FadeInUp.delay(250).duration(600)}
+        style={styles.taglineBlock}
+      >
         <Text style={styles.taglineLine} accessibilityRole="header">
           <Text style={styles.taglineAccent}>India's </Text>
           <Text style={styles.taglineDark}>Most </Text>
@@ -293,11 +319,15 @@ const SlideTwo: React.FC = memo(() => (
           <Text style={styles.headlineAccent}>Our Responsibility</Text>
         </Text>
         <Text style={styles.description}>
-          Experience safe, reliable and comfortable bus rental services across India.
+          Experience safe, reliable and comfortable bus rental services across
+          India.
         </Text>
       </Animated.View>
 
-      <Animated.View entering={FadeIn.delay(200).duration(700)} style={styles.heroWrap}>
+      <Animated.View
+        entering={FadeIn.delay(200).duration(700)}
+        style={styles.heroWrap}
+      >
         <Image
           source={require('../../../assets/images/urban-cruise-bus-onboarding-image.png')}
           style={styles.hero}
@@ -329,7 +359,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   autoAdvanceMs = AUTO_ADVANCE_DEFAULT_MS,
 }) => {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<Navigation>();
+  const dispatch = useAppDispatch();
   const pagerRef = useRef<PagerView>(null);
   const progress = useSharedValue(0);
   const [page, setPage] = useState(0);
@@ -390,7 +420,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   }, [page, scheduleAdvance, clearTimer]);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
+    const sub = AppState.addEventListener('change', nextState => {
       if (nextState === 'active') scheduleAdvance();
       else clearTimer();
     });
@@ -399,11 +429,14 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
   useEffect(() => clearTimer, [clearTimer]);
 
-  const goToRolePicker = useCallback(() => {
+  const handleFinishOnboarding = useCallback(() => {
     userInteractedRef.current = true;
     clearTimer();
-    navigation.navigate('OnboardingDashboard');
-  }, [clearTimer, navigation]);
+    // Marks the onboarding session as done. RootNavigator will then
+    // swap this stack out for AuthFlow (if unauthenticated) or the
+    // role-specific home stack (if authenticated).
+    dispatch(completeOnboarding());
+  }, [clearTimer, dispatch]);
 
   const topPad = Math.max(insets.top, Spacing.md);
   const bottomPad = Math.max(insets.bottom, Spacing.md);
@@ -413,7 +446,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
       <View style={styles.topBar}>
         {!isLastPage ? (
           <Pressable
-            onPress={goToRolePicker}
+            onPress={handleFinishOnboarding}
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Skip onboarding"
@@ -449,10 +482,13 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
         {isLastPage ? (
           <Animated.View entering={FadeInUp.duration(400)}>
             <Pressable
-              onPress={goToRolePicker}
+              onPress={handleFinishOnboarding}
               accessibilityRole="button"
               accessibilityLabel="Get started"
-              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+              style={({ pressed }) => [
+                styles.cta,
+                pressed && styles.ctaPressed,
+              ]}
             >
               <Text style={styles.ctaText}>Get Started</Text>
             </Pressable>
