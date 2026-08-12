@@ -16,6 +16,7 @@ export type RootStackParamList = {
 /* -------------------- Onboarding -------------------- */
 export type OnboardingParamList = {
   Onboarding: undefined;
+  Splash: undefined;
 };
 
 /* --------------------- Auth ------------------------- */
