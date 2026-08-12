@@ -1,4 +1,3 @@
-/* eslint-disable no-void */
 /**
  * ------------------------------------------------------------------
  * LoginScreen — Production
@@ -53,7 +52,6 @@ import {
 } from '../../theme';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
-  loginSuccess,
   selectRole,
   type UserRole,
 } from '../../store/slices/appSlice';
@@ -246,18 +244,17 @@ const LoginScreen: React.FC = () => {
         if (submitting) return;
         setSubmitting(true);
         try {
-          // TODO: replace with real OTP send mutation, then
-          //   navigation.navigate('OtpVerification', { role, phone });
+          // TODO: replace with real OTP send mutation
+          //   (apiClient.post(endpoints.auth.requestOtp(), { phone, role }))
           await new Promise<void>(resolve => {
             setTimeout(() => resolve(), 400);
           });
-          dispatch(loginSuccess({ role }));
-          void phone;
+          navigation.navigate('OtpVerify', { role, phone });
         } finally {
           setSubmitting(false);
         }
       }),
-    [dispatch, handleSubmit, role, submitting],
+    [handleSubmit, navigation, role, submitting],
   );
 
   const canSubmit = isValid && !submitting;

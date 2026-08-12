@@ -1,26 +1,14 @@
 // src/navigation/AuthNavigator.tsx
 
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../features/auth/LoginScreen';
-import { Colors, Spacing, Typography } from '../theme';
+import OtpVerifyScreen from '../features/auth/OtpVerifyScreen';
+import SupportScreen from '../features/support/screens/SupportScreen';
 import { useAppSelector } from '../store/hooks';
 import type { AuthParamList } from './types';
 
 const Stack = createNativeStackNavigator<AuthParamList>();
-
-const Placeholder: React.FC<{ label: string }> = ({ label }) => {
-  return (
-    <View style={styles.placeholder}>
-      <Text style={styles.placeholderText}>{label} — coming soon</Text>
-    </View>
-  );
-};
-
-const OtpVerifyScreen: React.FC = () => {
-  return <Placeholder label="OTP Verification" />;
-};
 
 const AuthNavigator: React.FC = () => {
   const selectedRole = useAppSelector(s => s.app.selectedRole) ?? 'customer';
@@ -43,23 +31,14 @@ const AuthNavigator: React.FC = () => {
       />
 
       <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
+
+      <Stack.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
     </Stack.Navigator>
   );
 };
 
 export default AuthNavigator;
-
-const styles = StyleSheet.create({
-  placeholder: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.lg,
-  },
-
-  placeholderText: {
-    ...Typography.subtitle,
-    color: Colors.textSecondary,
-  },
-});

@@ -22,6 +22,7 @@ export type OnboardingParamList = {
 export type AuthParamList = {
   Login: { role: UserRole };
   OtpVerify: { role: UserRole; phone: string };
+  Support: undefined;
 };
 
 /* ------------------ Customer stack ------------------ */
