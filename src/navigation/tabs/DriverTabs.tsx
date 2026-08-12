@@ -3,6 +3,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { DriverTabParamList } from '../types';
+import DriverHomeScreen from '../../features/driver/DriverHomeScreen';
 
 const Tab = createBottomTabNavigator<DriverTabParamList>();
 
@@ -17,7 +18,7 @@ const DriverTabs: React.FC = () => {
         headerShown: false,
       }}
     >
-      <Tab.Screen name="Home" component={PlaceholderScreen} />
+      <Tab.Screen name="Home" component={DriverHomeScreen} />
       <Tab.Screen name="MyTrips" component={PlaceholderScreen} />
       <Tab.Screen name="Emergency" component={PlaceholderScreen} />
       <Tab.Screen name="Earnings" component={PlaceholderScreen} />

@@ -3,6 +3,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { UcTabParamList } from '../types';
+import UcHomeScreen from '../../features/uc/UcHomeScreen';
 
 const Tab = createBottomTabNavigator<UcTabParamList>();
 
@@ -17,7 +18,7 @@ const UcTabs: React.FC = () => {
         headerShown: false,
       }}
     >
-      <Tab.Screen name="Dashboard" component={PlaceholderScreen} />
+      <Tab.Screen name="Dashboard" component={UcHomeScreen} />
       <Tab.Screen name="Bookings" component={PlaceholderScreen} />
       <Tab.Screen name="AddBooking" component={PlaceholderScreen} />
       <Tab.Screen name="Customers" component={PlaceholderScreen} />

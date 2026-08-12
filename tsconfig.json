@@ -12,7 +12,7 @@
       "@theme": ["./src/theme"],
       "@theme/*": ["./src/theme/*"],
       "@assets/*": ["./src/assets/*"],
-      "@shared/*": ["./src/shared/*"],
+      "@shared/*": ["./src/features/shared/*"],
       "@api/*": ["./src/api/*"],
       "@services/*": ["./src/services/*"],
       "@store": ["./src/store"],
@@ -21,7 +21,8 @@
       "@navigation/*": ["./src/navigation/*"],
       "@app-types/*": ["./src/types/*"],
       "@features/*": ["./src/features/*"],
-      "@components/*": ["./src/components/*"]
+      "@components/*": ["./src/components/*"],
+      "@mocks/*": ["./src/mocks/*"],
     }
   },
 

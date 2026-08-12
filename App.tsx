@@ -49,8 +49,6 @@ const App: React.FC = () => {
                 <BottomSheetModalProvider>
                   <StatusBar
                     barStyle="dark-content"
-                    backgroundColor={Colors.background}
-                    translucent={false}
                   />
                   <NavigationContainer ref={navigationRef}>
                     <RootNavigator />

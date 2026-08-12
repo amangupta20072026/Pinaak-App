@@ -3,6 +3,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { VendorTabParamList } from '../types';
+import VendorHomeScreen from '../../features/vendor/VendorHomeScreen';
 
 const Tab = createBottomTabNavigator<VendorTabParamList>();
 
@@ -17,7 +18,7 @@ const VendorTabs: React.FC = () => {
         headerShown: false,
       }}
     >
-      <Tab.Screen name="Dashboard" component={PlaceholderScreen} />
+      <Tab.Screen name="Dashboard" component={VendorHomeScreen} />
       <Tab.Screen name="Bookings" component={PlaceholderScreen} />
       <Tab.Screen name="Fleet" component={PlaceholderScreen} />
       <Tab.Screen name="Drivers" component={PlaceholderScreen} />

@@ -36,7 +36,7 @@ const VendorHomeScreen: React.FC = () => {
         <Text style={styles.eyebrow}>Signed in</Text>
         <Text style={styles.title}>Vendor Home</Text>
         <Text style={styles.description}>
-          Bottom tabs will live here: Dashboard, Fleet, Bookings, Profile.
+          Bottom tabs will live here: Dashboard, Bookings, Fleet, Drivers, Profile.
         </Text>
       </View>
       <Pressable

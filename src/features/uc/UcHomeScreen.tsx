@@ -36,7 +36,7 @@ const UcHomeScreen: React.FC = () => {
         <Text style={styles.eyebrow}>Signed in</Text>
         <Text style={styles.title}>UC Home</Text>
         <Text style={styles.description}>
-          Bottom tabs will live here: Dashboard, Ops, Users, Profile.
+          Bottom tabs will live here: Dashboard, Bookings, AddBooking, Customers, Profile.
         </Text>
       </View>
       <Pressable

@@ -23,6 +23,7 @@ export const Colors = {
   secondaryLight: '#FFD54F',
 
   accent: '#FF6F00',
+  textOnPrimary: '#FFFFFF',
 
   /**
    * ------------------------------------------------------------
@@ -116,6 +117,14 @@ export const Colors = {
   iconPrimary: '#111827',
   iconSecondary: '#6B7280',
   iconDisabled: '#BDBDBD',
+
+  /**
+   * ------------------------------------------------------------
+   * Muted Colors
+   * ------------------------------------------------------------
+   */
+  textMuted: '#9CA3AF',
+  surfaceMuted: '#F3F4F6',
 
   /**
    * ------------------------------------------------------------

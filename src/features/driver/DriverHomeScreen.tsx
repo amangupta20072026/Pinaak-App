@@ -36,7 +36,7 @@ const DriverHomeScreen: React.FC = () => {
         <Text style={styles.eyebrow}>Signed in</Text>
         <Text style={styles.title}>Driver Home</Text>
         <Text style={styles.description}>
-          Bottom tabs will live here: Today, Trips, Earnings, Profile.
+          Bottom tabs will live here: Home, MyTrips, Emergency, Earnings, Profile.
         </Text>
       </View>
       <Pressable
