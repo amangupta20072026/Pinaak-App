@@ -1,30 +1,30 @@
+/* eslint-disable react-native/no-inline-styles */
 /**
  * ------------------------------------------------------------------
- * CustomTabBar — Notched pill with floating white badge
+ * CustomTabBar — Flat bar with floating overlapping badge
  * ------------------------------------------------------------------
- * Matches the neumorphic reference design:
+ *   ┌──────────────────────────────────────────┐
+ *   │   ╭──╮                                   │  ← white badge sits
+ *   │   │🏠│                                   │    with ~22px above
+ *   │   ╰──╯    📄     📅     💳     👤        │    the bar and the
+ *   │   Home  Quo... Book.. Pay... Prof..      │    rest inside it
+ *   └──────────────────────────────────────────┘
  *
- *   ┌────────────────────╮╭─────────────────┐
- *   │                    ╰○╯                │   ← white badge sits
- *   │  🏠     📅     🚗     💳     👤        │     in a notch cut
- *   │ Home Bookings Trips Payments Profile  │     from the top edge
- *   └───────────────────────────────────────┘
+ * The bar itself is a plain rounded rectangle — no SVG, no notch.
+ * The "curve" around the active icon is just the badge circle's own
+ * border sitting half above / half inside the bar. Much less code
+ * to maintain than the notched-path variant.
  *
- * Two layered shadows:
- *   - SVG-drawn bar uses <FeDropShadow /> INSIDE the SVG so its
- *     shadow follows the notch on both iOS and Android
- *   - Badge is a plain circle so RN's own shadow system is enough
- *
- * Active state — colour comes from tabConfig.ts:
- *   - Badge fill: white (Colors.surface)
- *   - Icon inside badge: tab.color
- *   - Label under the notch: tab.color, bold
+ * Active state — color comes from tabConfig.ts:
+ *   - Badge fill:      Colors.surface (white)
+ *   - Icon in badge:   tab.color
+ *   - Label:           tab.color, bold
  * Inactive state:
- *   - Icon: Colors.textSecondary (grey)
- *   - Label: Colors.textSecondary, medium
+ *   - Icon:            Colors.textSecondary (grey)
+ *   - Label:           Colors.textSecondary, medium
  *
- * The notch centre + badge x-position share one Reanimated shared
- * value, so they slide together as a single motion.
+ * A single Reanimated shared value drives the badge's translateX
+ * with a spring, so it slides smoothly between tab positions.
  * ------------------------------------------------------------------
  */
 
@@ -39,15 +39,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import Svg, { Defs, FeDropShadow, Filter, Path } from 'react-native-svg';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-import { Colors, Spacing, Typography } from '@theme';
+import { Colors, Shadows, Spacing, Typography } from '@theme';
 import { getTabConfig, type TabRoleName } from './tabConfig';
 
 /* -----------------------------------------------------------------
@@ -59,55 +57,19 @@ const BAR_HORIZONTAL_MARGIN = 12;
 const BAR_BOTTOM_MARGIN = 8;
 const BAR_RADIUS = 26;
 
-const BADGE_SIZE = 48;
+const BADGE_SIZE = 54;
 const BADGE_RADIUS = BADGE_SIZE / 2;
+const BADGE_BORDER_WIDTH = 1.5;
 
-const NOTCH_DEPTH = 22;
-const NOTCH_WIDTH = 72;
-
-/** Extra room around the SVG so its drop shadow doesn't clip. */
-const SHADOW_PAD = 14;
+/**
+ * How much of the badge protrudes above the bar's top edge.
+ *   larger → circle rides higher above the bar
+ *   smaller → circle sits deeper inside the bar
+ * At 22, roughly 40% is above and 60% inside — matches the reference.
+ */
+const BADGE_OVERFLOW_TOP = 22;
 
 const SPRING = { damping: 15, stiffness: 180, mass: 0.6 } as const;
-
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-
-/* -----------------------------------------------------------------
- * Notched-pill path (worklet-safe)
- * -----------------------------------------------------------------
- * Rounded rectangle with a smooth curve cut into the top edge,
- * centred on `cx`. Marked 'worklet' so it can run on the UI thread
- * from useAnimatedProps.
- * ----------------------------------------------------------------- */
-
-function buildNotchedPath(width: number, cx: number): string {
-  'worklet';
-  const r = BAR_RADIUS;
-  const h = BAR_HEIGHT;
-  const half = NOTCH_WIDTH / 2;
-  const dip = NOTCH_DEPTH;
-
-  const notchLeft = cx - half;
-  const notchRight = cx + half;
-  const c1 = cx - half * 0.55;
-  const c2 = cx + half * 0.55;
-
-  return (
-    'M ' + r + ' 0' +
-    ' L ' + notchLeft + ' 0' +
-    ' C ' + c1 + ' 0, ' + c1 + ' ' + dip + ', ' + cx + ' ' + dip +
-    ' C ' + c2 + ' ' + dip + ', ' + c2 + ' 0, ' + notchRight + ' 0' +
-    ' L ' + (width - r) + ' 0' +
-    ' Q ' + width + ' 0, ' + width + ' ' + r +
-    ' L ' + width + ' ' + (h - r) +
-    ' Q ' + width + ' ' + h + ', ' + (width - r) + ' ' + h +
-    ' L ' + r + ' ' + h +
-    ' Q 0 ' + h + ', 0 ' + (h - r) +
-    ' L 0 ' + r +
-    ' Q 0 0, ' + r + ' 0' +
-    ' Z'
-  );
-}
 
 /* -----------------------------------------------------------------
  * Component
@@ -132,10 +94,6 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
   useEffect(() => {
     cx.value = withSpring(targetCx, SPRING);
   }, [targetCx, cx]);
-
-  const animatedPathProps = useAnimatedProps(() => ({
-    d: buildNotchedPath(barWidth, cx.value),
-  }));
 
   const badgeAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: cx.value - BADGE_RADIUS }],
@@ -162,57 +120,13 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
           paddingBottom:
             Math.max(insets.bottom, Spacing.sm) + BAR_BOTTOM_MARGIN,
           paddingHorizontal: BAR_HORIZONTAL_MARGIN,
+          paddingTop: BADGE_OVERFLOW_TOP,
         },
       ]}
     >
-      <View style={styles.barWrap} onLayout={onBarLayout}>
-        {/* Notched-pill background + its drop shadow (SVG) */}
-        <Svg
-          width={barWidth + SHADOW_PAD * 2}
-          height={BAR_HEIGHT + SHADOW_PAD * 2}
-          style={styles.svgLayer}
-        >
-          <Defs>
-            <Filter
-              id="softShadow"
-              x="-25%"
-              y="-25%"
-              width="150%"
-              height="150%"
-            >
-              <FeDropShadow
-                dx="0"
-                dy="3"
-                stdDeviation="5"
-                floodColor="#000000"
-                floodOpacity="0.08"
-              />
-            </Filter>
-          </Defs>
-          <AnimatedPath
-            animatedProps={animatedPathProps}
-            transform={`translate(${SHADOW_PAD}, ${SHADOW_PAD})`}
-            fill={Colors.backgroundSecondary}
-            filter="url(#softShadow)"
-          />
-        </Svg>
-
-        {/* Floating white badge with the coloured active icon inside */}
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.badge, badgeAnimStyle]}
-        >
-          {ActiveIcon ? (
-            <ActiveIcon
-              color={activeColor}
-              size={22}
-              strokeWidth={2.4}
-            />
-          ) : null}
-        </Animated.View>
-
-        {/* Tab row */}
-        <View style={styles.tabRow}>
+      <View style={styles.barWrap}>
+        {/* Flat rounded-rect bar */}
+        <View style={styles.bar} onLayout={onBarLayout}>
           {state.routes.map((route, index) => {
             const meta = config[route.name];
             if (!meta) return <View key={route.key} style={styles.tab} />;
@@ -253,9 +167,9 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
               >
                 <View style={styles.iconSlot}>
                   {focused ? (
-                    // Icon is drawn inside the floating badge above;
-                    // this placeholder keeps the label at the same y
-                    // as inactive tabs.
+                    // Icon rendered inside the floating badge; keep a
+                    // placeholder of the same size so the label sits
+                    // at the same y as inactive tabs.
                     <View style={styles.iconPlaceholder} />
                   ) : (
                     <Icon
@@ -278,6 +192,20 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
             );
           })}
         </View>
+
+        {/* Floating white badge — slides horizontally to the active tab */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.badge, badgeAnimStyle]}
+        >
+          {ActiveIcon ? (
+            <ActiveIcon
+              color={activeColor}
+              size={24}
+              strokeWidth={2.2}
+            />
+          ) : null}
+        </Animated.View>
       </View>
     </View>
   );
@@ -297,51 +225,27 @@ const styles = StyleSheet.create({
     position: 'relative',
     height: BAR_HEIGHT,
   },
-  svgLayer: {
-    position: 'absolute',
-    left: -SHADOW_PAD,
-    top: -SHADOW_PAD,
-  },
-  badge: {
-    position: 'absolute',
-    left: 0,
-    // ~6px of the badge peeks above the bar's top edge; the rest sits
-    // inside the notch (which is NOTCH_DEPTH tall).
-    top: -(BADGE_RADIUS + 4),
-    width: BADGE_SIZE,
-    height: BADGE_SIZE,
-    borderRadius: BADGE_RADIUS,
-    backgroundColor: Colors.surface, // white — not the tab colour
-    alignItems: 'center',
-    justifyContent: 'center',
-    // Badge's own soft shadow — the "raised button" feel
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  tabRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  bar: {
     height: BAR_HEIGHT,
-    paddingTop: NOTCH_DEPTH + 4,
-    paddingBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: BAR_RADIUS,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    ...Shadows.md,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 2,
+    justifyContent: 'center',
+    gap: 3,
   },
   tabPressed: {
     opacity: 0.7,
   },
   iconSlot: {
-    height: 24,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
   },
   iconPlaceholder: {
     width: 22,
@@ -352,5 +256,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     fontWeight: '500',
+  },
+  badge: {
+    position: 'absolute',
+    left: 0,
+    top: -BADGE_OVERFLOW_TOP,
+    width: BADGE_SIZE,
+    height: BADGE_SIZE,
+    borderRadius: BADGE_RADIUS,
+    backgroundColor: Colors.surface,
+    borderWidth: BADGE_BORDER_WIDTH,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
   },
 });
