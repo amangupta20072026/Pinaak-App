@@ -127,7 +127,7 @@ export type UcTabParamList = {
   Bookings: undefined;
   AddBooking: undefined;
   Customers: undefined;
-  Reports: undefined;
+  Profile: undefined;
 };
 
 /* ================================================================

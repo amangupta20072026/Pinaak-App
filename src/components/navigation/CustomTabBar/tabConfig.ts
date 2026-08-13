@@ -17,7 +17,6 @@
 
 import type { ComponentType } from 'react';
 import {
-  BarChart3,
   CalendarCheck,
   CreditCard,
   FileText,
@@ -120,9 +119,9 @@ const ucTabConfig: TabConfig = {
     label: 'Bookings',
     color: TabPalette.purple,
   },
-  AddBooking: { Icon: PlusCircle, label: 'Add', color: TabPalette.orange },
+  AddBooking: { Icon: PlusCircle, label: 'AddBooking', color: TabPalette.orange },
   Customers: { Icon: Users, label: 'Customers', color: TabPalette.blue },
-  Reports: { Icon: BarChart3, label: 'Reports', color: TabPalette.amber },
+  Profile: { Icon: User, label: 'Profile', color: TabPalette.pink },
 };
 
 const CONFIG_MAP: Record<TabRoleName, TabConfig> = {

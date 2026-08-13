@@ -27,7 +27,7 @@ const UcTabs: React.FC = () => {
       <Tab.Screen name="Bookings" component={PlaceholderScreen} />
       <Tab.Screen name="AddBooking" component={PlaceholderScreen} />
       <Tab.Screen name="Customers" component={PlaceholderScreen} />
-      <Tab.Screen name="Reports" component={PlaceholderScreen} />
+      <Tab.Screen name="Profile" component={PlaceholderScreen} />
     </Tab.Navigator>
   );
 };
