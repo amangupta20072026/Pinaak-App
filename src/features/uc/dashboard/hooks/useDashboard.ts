@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { dashboardMock } from '../mocks/dashboardMock';
+import { dashboardMock } from '../../../../mocks/data/dashboardMock';
 import type { DashboardData } from '../types';
 
 // TODO(backend): move to src/constants/queryKeys.ts
@@ -8,7 +8,9 @@ const UC_DASHBOARD_KEY = ['uc', 'dashboard'] as const;
 async function fetchDashboard(): Promise<DashboardData> {
   // TODO(backend): const { data } = await api.get<DashboardData>(endpoints.uc.dashboard);
   // return data;
-  await new Promise(r => setTimeout(r, 300));
+
+  await new Promise<void>(resolve => setTimeout(resolve, 300));
+
   return dashboardMock;
 }
 

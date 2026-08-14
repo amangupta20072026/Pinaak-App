@@ -1,4 +1,4 @@
-import type { DashboardData } from '../types';
+import type { DashboardData } from '@features/uc/dashboard/types';
 
 export const dashboardMock: DashboardData = {
   greeting: { name: 'Admin', dateISO: '2025-08-11' },
