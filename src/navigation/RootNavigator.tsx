@@ -11,14 +11,20 @@
  *
  * Branch selection ladder (top wins):
  *
- *   !bootstrapped               → SplashIntro (runs bootstrap in parallel)
- *   !hasSeenOnboarding          → OnboardingFlow
- *   !isAuthenticated            → AuthFlow
- *   userRole === 'customer'     → CustomerFlow
- *   userRole === 'vendor'       → VendorFlow
- *   userRole === 'driver'       → DriverFlow
- *   userRole === 'uc'           → UcFlow
- *   (fallback — auth glitch)    → AuthFlow
+ *   !bootstrapped                    → SplashIntro (bootstrap runs in parallel)
+ *   !hasSeenOnboardingThisSession    → OnboardingFlow (shows EVERY launch)
+ *   !isAuthenticated                 → AuthFlow
+ *   userRole === 'customer'          → CustomerFlow
+ *   userRole === 'vendor'            → VendorFlow
+ *   userRole === 'driver'            → DriverFlow
+ *   userRole === 'uc'                → UcFlow
+ *   (fallback — auth glitch)         → AuthFlow
+ *
+ * ONBOARDING BEHAVIOR:
+ *   `hasSeenOnboardingThisSession` is a session-only flag. Every cold
+ *   start it resets to false, so onboarding shows on every launch —
+ *   regardless of login status. Tapping Skip / Get Started flips it
+ *   to true for the current session only.
  * ------------------------------------------------------------------
  */
 
@@ -40,7 +46,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const RootNavigator: React.FC = () => {
   const bootstrapped = useAppSelector(s => s.app.bootstrapped);
-  const hasSeenOnboarding = useAppSelector(s => s.app.hasSeenOnboarding);
+  const hasSeenOnboardingThisSession = useAppSelector(
+    s => s.app.hasSeenOnboardingThisSession,
+  );
   const isAuthenticated = useAppSelector(s => s.app.isAuthenticated);
   const userRole = useAppSelector(s => s.app.userRole);
 
@@ -54,7 +62,7 @@ const RootNavigator: React.FC = () => {
     >
       {!bootstrapped ? (
         <Stack.Screen name="SplashIntro" component={SplashIntroScreen} />
-      ) : !hasSeenOnboarding ? (
+      ) : !hasSeenOnboardingThisSession ? (
         <Stack.Screen name="OnboardingFlow" component={OnboardingNavigator} />
       ) : !isAuthenticated ? (
         <Stack.Screen name="AuthFlow" component={AuthNavigator} />

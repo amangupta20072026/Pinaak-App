@@ -10,17 +10,16 @@
  *                    until Firebase / Keychain / /me / config are
  *                    resolved (or safely fallen back to).
  *
- *   Onboarding    — `hasSeenOnboarding` persists across app kills
- *                    (via MMKV, written directly by the orchestrator
- *                    and OnboardingScreen — NOT via redux-persist).
+ *   Onboarding    — `hasSeenOnboardingThisSession` is SESSION-ONLY.
+ *                    Starts `false` on every cold start (never
+ *                    persisted). Onboarding shows on every launch —
+ *                    tapping Skip / Get Started flips this to true
+ *                    for the current session only.
  *
  *   Identity      — `isAuthenticated`, `userRole`, `userId`, etc.
  *                    Populated by bootstrap OR by loginSuccess after
- *                    an interactive login.
- *
- * The persist transform in store/index.ts only whitelists identity
- * fields — bootstrap flags and onboarding derive from other sources
- * on every launch.
+ *                    an interactive login. Tokens live in Keychain,
+ *                    not here (see secureStorage.ts).
  * ------------------------------------------------------------------
  */
 
@@ -43,15 +42,15 @@ export type AppState = {
   // Bootstrap
   bootstrapped: boolean;
 
-  // Onboarding
-  hasSeenOnboarding: boolean;
+  // Onboarding (session-only — resets every cold start)
+  hasSeenOnboardingThisSession: boolean;
 
   // Role picker (before login)
   selectedRole: UserRole | null;
 
   // Identity
   authStatus: AuthStatus;
-  isAuthenticated: boolean; // convenience mirror — true iff authStatus === 'authenticated' | 'provisional'
+  isAuthenticated: boolean;
   userId: string | null;
   userRole: UserRole | null;
   subRole: SubRole;
@@ -63,7 +62,7 @@ export type AppState = {
 
 const initialState: AppState = {
   bootstrapped: false,
-  hasSeenOnboarding: false,
+  hasSeenOnboardingThisSession: false,
   selectedRole: null,
   authStatus: 'unauthenticated',
   isAuthenticated: false,
@@ -79,23 +78,24 @@ const appSlice = createSlice({
   initialState,
   reducers: {
     /**
-     * Called exactly once by the bootstrap orchestrator. Writes ALL
-     * resolved state in a single reducer so RootNavigator sees a
-     * consistent snapshot on its next render — no flicker between
-     * splash and the target stack.
+     * Called exactly once by the bootstrap orchestrator. Writes all
+     * resolved identity + config state in a single reducer so
+     * RootNavigator sees a consistent snapshot on its next render.
+     *
+     * NOTE: `hasSeenOnboardingThisSession` is NOT touched here — it
+     * always starts `false` per session and is only flipped by the
+     * user tapping Skip / Get Started on the Onboarding screen.
      */
     bootstrapCompleted: (
       state,
       action: PayloadAction<{
         appConfig: AppConfig;
         auth: AuthResolution;
-        hasSeenOnboarding: boolean;
       }>,
     ) => {
-      const { appConfig, auth, hasSeenOnboarding } = action.payload;
+      const { appConfig, auth } = action.payload;
 
       state.appConfig = appConfig;
-      state.hasSeenOnboarding = hasSeenOnboarding;
 
       if (auth.status === 'authenticated') {
         state.authStatus = 'authenticated';
@@ -105,10 +105,8 @@ const appSlice = createSlice({
         state.subRole = auth.subRole;
         state.entityId = auth.entityId;
       } else if (auth.status === 'provisional') {
-        // We trust the local token for now. RootNavigator can either
-        // treat provisional as authenticated (opens the app) or hold
-        // on a small revalidation screen — we pick "open the app"
-        // for perceived speed. A background /me refetch confirms.
+        // We trust the local token for now. A background /me refetch
+        // will confirm or reject later.
         state.authStatus = 'provisional';
         state.isAuthenticated = true;
         // userRole was persisted from last session — keep it.
@@ -124,9 +122,9 @@ const appSlice = createSlice({
       state.bootstrapped = true;
     },
 
-    /** Onboarding "Skip" / "Get Started" tap. Pure state write. */
+    /** Onboarding "Skip" / "Get Started" tap. Session-only flip. */
     completeOnboarding: state => {
-      state.hasSeenOnboarding = true;
+      state.hasSeenOnboardingThisSession = true;
     },
 
     /** Role picked in the role-picker sheet. */
@@ -139,7 +137,11 @@ const appSlice = createSlice({
       state.selectedRole = null;
     },
 
-    /** Called after successful interactive login. */
+    /**
+     * Called after successful interactive login (OTP verify).
+     * Tokens MUST also be saved to Keychain by the caller — this
+     * reducer only updates in-memory identity.
+     */
     loginSuccess: (
       state,
       action: PayloadAction<{
@@ -181,7 +183,7 @@ const appSlice = createSlice({
       }
     },
 
-    /** Full logout. */
+    /** Full logout. Caller must ALSO clear tokens from Keychain. */
     logout: state => {
       state.authStatus = 'unauthenticated';
       state.isAuthenticated = false;

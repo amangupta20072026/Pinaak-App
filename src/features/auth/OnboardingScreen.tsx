@@ -51,7 +51,6 @@ import {
 } from '../../theme';
 import { useAppDispatch } from '../../store/hooks';
 import { completeOnboarding } from '../../store/slices/appSlice';
-import { persistHasSeenOnboarding } from '@app/bootstrap';
 
 /* -----------------------------------------------------------------
  * Types
@@ -251,7 +250,10 @@ const PaginationDot: React.FC<{
   });
 
   return (
-    <Animated.View style={[styles.dot, animatedStyle]} accessibilityRole="tab" />
+    <Animated.View
+      style={[styles.dot, animatedStyle]}
+      accessibilityRole="tab"
+    />
   );
 };
 
@@ -420,7 +422,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   }, [page, scheduleAdvance, clearTimer]);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
+    const sub = AppState.addEventListener('change', nextState => {
       if (nextState === 'active') scheduleAdvance();
       else clearTimer();
     });
@@ -432,9 +434,9 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   const handleFinishOnboarding = useCallback(() => {
     userInteractedRef.current = true;
     clearTimer();
-    // 1. Persist to MMKV (so next cold start skips onboarding).
-    persistHasSeenOnboarding();
-    // 2. Update Redux (RootNavigator swaps stack — no re-checks).
+    // Session-only flip. `hasSeenOnboardingThisSession` resets on next
+    // cold start — onboarding shows again per Behavior 2 requirement.
+    // RootNavigator swaps this stack out to AuthFlow or role home stack.
     dispatch(completeOnboarding());
   }, [clearTimer, dispatch]);
 
@@ -485,7 +487,10 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
               onPress={handleFinishOnboarding}
               accessibilityRole="button"
               accessibilityLabel="Get started"
-              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+              style={({ pressed }) => [
+                styles.cta,
+                pressed && styles.ctaPressed,
+              ]}
             >
               <Text style={styles.ctaText}>Get Started</Text>
             </Pressable>

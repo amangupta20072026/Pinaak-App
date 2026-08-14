@@ -55,7 +55,7 @@ type PersistedAppSubset = Pick<
 
 const SESSION_DEFAULTS = {
   bootstrapped: false,
-  hasSeenOnboarding: false, // read from MMKV by bootstrap
+  hasSeenOnboardingThisSession: false, // session-only — resets every cold start
   selectedRole: null,
   authStatus: 'unauthenticated' as const,
   isAuthenticated: false,

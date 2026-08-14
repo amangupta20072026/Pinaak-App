@@ -28,7 +28,13 @@
  *   │              │             │
  *   │              └─────┬───────┘
  *   ▼                    ▼
- * dispatch(bootstrapCompleted({ auth, appConfig, hasSeenOnboarding }))
+ * dispatch(bootstrapCompleted({ auth, appConfig }))
+ *
+ * NOTE ON ONBOARDING:
+ *   `hasSeenOnboardingThisSession` is NO LONGER read from MMKV or
+ *   included in the dispatch. Onboarding is now session-only — it
+ *   shows on every cold start regardless of prior sessions. See
+ *   appSlice.ts and RootNavigator.tsx.
  *
  * Rules that make this production-grade:
  *   1. Every network call has a timeout + fallback → cold-start never hangs.
@@ -42,7 +48,6 @@
 
 import type { AppDispatch } from '@store';
 import { bootstrapCompleted } from '@store/slices/appSlice';
-import { mmkv } from '@services/storage/mmkv';
 
 import { withTimeout } from './timeouts';
 import { initFirebase } from './steps/firebase';
@@ -58,13 +63,6 @@ import { validateAuth, type AuthResolution } from './steps/auth';
 const AUTH_VALIDATE_TIMEOUT_MS = 3_000;
 const APP_CONFIG_TIMEOUT_MS = 3_000;
 
-// Whether onboarding has been dismissed persists across app kills.
-// We store the flag directly in MMKV (not redux-persist) so it's
-// available synchronously during bootstrap. Key kept next to the
-// storageKeys registry via a plain string cast — promote to
-// StorageKeys once you decide to expose it.
-const HAS_SEEN_ONBOARDING_KEY = 'app.hasSeenOnboarding';
-
 export async function runBootstrap(dispatch: AppDispatch): Promise<void> {
   try {
     // Fire-and-forget — telemetry init should never block boot.
@@ -72,8 +70,6 @@ export async function runBootstrap(dispatch: AppDispatch): Promise<void> {
 
     // ── Phase 1: synchronous / cheap reads ──────────────────────
     const cachedConfig = readCachedAppConfig();
-    const hasSeenOnboarding =
-      mmkv.getBoolean(HAS_SEEN_ONBOARDING_KEY as never) ?? false;
 
     // ── Phase 2: Keychain (fast, but async) ─────────────────────
     const tokens = await readKeychainTokens();
@@ -103,7 +99,6 @@ export async function runBootstrap(dispatch: AppDispatch): Promise<void> {
       bootstrapCompleted({
         appConfig: configResult.value,
         auth: authResult.value,
-        hasSeenOnboarding,
       }),
     );
   } catch {
@@ -114,13 +109,7 @@ export async function runBootstrap(dispatch: AppDispatch): Promise<void> {
       bootstrapCompleted({
         appConfig: readCachedAppConfig(),
         auth: { status: 'unauthenticated' },
-        hasSeenOnboarding: false,
       }),
     );
   }
-}
-
-/** Called by OnboardingScreen when user taps Skip / Get Started. */
-export function persistHasSeenOnboarding(): void {
-  mmkv.setBoolean(HAS_SEEN_ONBOARDING_KEY as never, true);
 }

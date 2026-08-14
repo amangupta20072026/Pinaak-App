@@ -50,6 +50,7 @@ import {
 } from '../../theme';
 import { useAppDispatch } from '../../store/hooks';
 import { loginSuccess } from '../../store/slices/appSlice';
+import { saveTokens } from '../../services/storage/secureStorage';
 import type { AuthParamList } from '../../navigation/types';
 import { withAlpha } from '../../components/roles';
 
@@ -335,12 +336,41 @@ const OtpVerifyScreen: React.FC = () => {
     setVerifying(true);
     setError(null);
     try {
-      // TODO: replace with real OTP verify mutation, e.g.
-      // would have returned. Replace the block below when wiring the API.
+      // TODO: replace with real OTP verify mutation, e.g.:
+      //   const { data } = await apiClient.post(endpoints.auth.verifyOtp(), {
+      //     phone,
+      //     otp,
+      //     role,
+      //   });
+      //   await saveTokens({
+      //     accessToken: data.accessToken,
+      //     refreshToken: data.refreshToken,
+      //   });
+      //   dispatch(loginSuccess({
+      //     userId: data.userId,
+      //     role: data.role,
+      //     subRole: data.subRole,
+      //     entityId: data.entityId,
+      //   }));
+      //
+      // Until the endpoint is live, we mock both the tokens AND the
+      // identity that /me would return. Replace both blocks when
+      // wiring the real API.
       await new Promise<void>(resolve => {
         setTimeout(() => resolve(), 500);
       });
 
+      // 1. Save mock tokens to Keychain — this is what makes login
+      //    persist across app kills. On next cold start, bootstrap's
+      //    readKeychainTokens() finds these, calls /me (which fails
+      //    since backend is mocked), falls back to 'provisional' auth,
+      //    and RootNavigator lands the user on their role home.
+      await saveTokens({
+        accessToken: `mock-access-${role}-${Date.now()}`,
+        refreshToken: `mock-refresh-${role}-${Date.now()}`,
+      });
+
+      // 2. Update Redux with identity for the current session.
       dispatch(
         loginSuccess({
           userId: `mock-${role}-user`,
