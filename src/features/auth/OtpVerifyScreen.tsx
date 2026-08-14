@@ -335,12 +335,20 @@ const OtpVerifyScreen: React.FC = () => {
     setVerifying(true);
     setError(null);
     try {
-      // TODO: replace with real OTP verify mutation
-      //   (apiClient.post(endpoints.auth.verifyOtp(), { phone, otp, role }))
+      // TODO: replace with real OTP verify mutation, e.g.
+      // would have returned. Replace the block below when wiring the API.
       await new Promise<void>(resolve => {
         setTimeout(() => resolve(), 500);
       });
-      dispatch(loginSuccess({ role }));
+
+      dispatch(
+        loginSuccess({
+          userId: `mock-${role}-user`,
+          role,
+          subRole: null,
+          entityId: `mock-${role}-entity`,
+        }),
+      );
     } catch {
       setError('That code didn\u2019t work. Please try again.');
     } finally {

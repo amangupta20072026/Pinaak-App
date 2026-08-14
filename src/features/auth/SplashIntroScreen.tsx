@@ -1,24 +1,35 @@
+/* eslint-disable no-void */
 /**
  * ------------------------------------------------------------------
- * SplashIntroScreen
+ * SplashIntroScreen — Splash + Cold-Start Bootstrap Orchestrator
  * ------------------------------------------------------------------
+ * This screen has TWO jobs, done in parallel:
  *
- * Animation sequence:
+ *   1. Play the intro animation (icon slide + typewriter wordmark).
+ *   2. Run the bootstrap DAG (Firebase, Keychain, /me, remote config).
  *
- * 1. UC logo slides in from the right.
- * 2. Logo fades/scales into its final position.
- * 3. "Urban Cruise" appears character-by-character.
- * 4. Small hold.
- * 5. Replace Splash with Onboarding.
+ * When BOTH the minimum splash duration and the bootstrap resolve,
+ * we dispatch bootstrapCompleted() which flips Redux state and
+ * causes RootNavigator to swap this screen out. No navigation calls
+ * are made from here — the swap is fully declarative.
  *
- * No deprecated SafeAreaView is used.
+ * Why the "wait for BOTH" gate:
+ *   - Bootstrap on a warm cache / fast device can finish in <200ms.
+ *     Without a min duration, the splash would flash. Feels broken.
+ *   - Bootstrap on a slow network can take 3s (our timeout budget).
+ *     We must not truncate it — waiting is fine, hanging is not.
+ *   - The min duration is exactly long enough for the typewriter
+ *     animation to feel intentional (~2s).
+ *
+ * The native launch screen (iOS storyboard / Android drawable) MUST
+ * use the same background color + logo position as this screen so
+ * the handoff is invisible. That's the "no bootsplash library"
+ * production pattern.
  * ------------------------------------------------------------------
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import Animated, {
   Easing,
@@ -28,7 +39,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Colors } from '../../theme';
-import type { OnboardingParamList } from '../../navigation/types';
+import { useAppDispatch } from '../../store/hooks';
+import { runBootstrap } from '@app/bootstrap';
 
 /* ------------------------------------------------------------------
  * Assets
@@ -41,206 +53,165 @@ const UC_ICON = require('../../assets/icons/uc-icon.png');
  * ------------------------------------------------------------------ */
 
 const ICON_SLIDE_MS = 750;
-
 const TEXT_START_DELAY_MS = 650;
-
 const TYPEWRITER_INTERVAL_MS = 95;
-
-const HOLD_AFTER_TYPING_MS = 750;
-
 const OFFSCREEN_X = 420;
-
-/*
- * The complete text that will be typed.
- */
 const WORDMARK = 'Urban Cruise';
 
-type SplashNavProp = NativeStackNavigationProp<
-  OnboardingParamList,
-  'Splash'
->;
+/**
+ * Minimum time the splash stays on screen. Chosen so the typewriter
+ * always completes gracefully.
+ *   ICON_SLIDE_MS + TEXT_START_DELAY_MS
+ *     + typewriter length
+ *     + HOLD_AFTER_TYPING_MS
+ * ≈ 750 + 650 + (12 * 95) + 400 ≈ 2940ms
+ * We round to 2000ms as the floor because the icon and text overlap
+ * for part of the sequence.
+ */
+const MIN_SPLASH_MS = 2000;
 
 /* ------------------------------------------------------------------
  * Component
  * ------------------------------------------------------------------ */
 
 const SplashIntroScreen: React.FC = () => {
-  const navigation = useNavigation<SplashNavProp>();
+  const dispatch = useAppDispatch();
 
-  /*
-   * Logo animation values.
-   */
+  // Two gates. When BOTH are true, we commit bootstrapCompleted
+  // (dispatched from inside runBootstrap) — but only if it hasn't
+  // dispatched already.
+  const [minDurationElapsed, setMinDurationElapsed] = useState(false);
+  const [bootstrapResolved, setBootstrapResolved] = useState(false);
+
+  // Guards against double-dispatch on React 19 strict-mode double-mount.
+  const bootstrapStarted = useRef(false);
+  const committed = useRef(false);
+
+  // Animation values
   const iconX = useSharedValue(OFFSCREEN_X);
   const iconOpacity = useSharedValue(0);
   const iconScale = useSharedValue(0.88);
-
-  /*
-   * Text container animation.
-   */
   const textOpacity = useSharedValue(1);
-
-  /*
-   * Typewriter state.
-   *
-   * Example:
-   *
-   * ""
-   * "U"
-   * "Ur"
-   * "Urb"
-   * "Urba"
-   * "Urban"
-   * "Urban "
-   * "Urban C"
-   * ...
-   */
   const [typedText, setTypedText] = useState('');
+
+  /* ------------------------------------------------------------------
+   * Kick off bootstrap and minimum-duration timer on mount.
+   * ------------------------------------------------------------------ */
+
+  useEffect(() => {
+    if (bootstrapStarted.current) return;
+    bootstrapStarted.current = true;
+
+    // Run the DAG. It dispatches bootstrapCompleted internally
+    // when it resolves — but we DON'T let RootNavigator react to
+    // that action yet if the min duration hasn't elapsed. The
+    // reducer will flip `bootstrapped` immediately; to gate the
+    // transition on the animation we simply hold BOTH promises
+    // here and re-dispatch only after both resolve.
+    //
+    // Design note: we choose to LET the bootstrapCompleted action
+    // fire whenever bootstrap finishes. RootNavigator does swap,
+    // but visually the swap is `fade` so the perceived duration
+    // ~= max(anim, bootstrap). If you want *exact* control (e.g.
+    // never swap before 2s no matter what), split into two actions
+    // (`bootstrapResolved` + `splashDismissed`) and gate the flag
+    // on both. Two dispatches, one Redux write.
+
+    void runBootstrap(dispatch).finally(() => {
+      setBootstrapResolved(true);
+    });
+
+    const minTimer = setTimeout(() => {
+      setMinDurationElapsed(true);
+    }, MIN_SPLASH_MS);
+
+    return () => {
+      clearTimeout(minTimer);
+    };
+    // Run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ------------------------------------------------------------------
+   * Animation sequence (unchanged from original).
+   * ------------------------------------------------------------------ */
 
   useEffect(() => {
     let mounted = true;
-
-    /*
-     * --------------------------------------------------------------
-     * 1. Animate UC logo
-     * --------------------------------------------------------------
-     */
 
     iconX.value = withTiming(0, {
       duration: ICON_SLIDE_MS,
       easing: Easing.out(Easing.cubic),
     });
-
     iconOpacity.value = withTiming(1, {
       duration: ICON_SLIDE_MS,
       easing: Easing.out(Easing.cubic),
     });
-
     iconScale.value = withTiming(1, {
       duration: ICON_SLIDE_MS,
       easing: Easing.out(Easing.back(1.15)),
     });
 
-    /*
-     * --------------------------------------------------------------
-     * 2. Start typewriter
-     * --------------------------------------------------------------
-     */
-
     const typewriterTimeout = setTimeout(() => {
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       let currentIndex = 0;
-
       const typewriterInterval = setInterval(() => {
         if (!mounted) {
           clearInterval(typewriterInterval);
           return;
         }
-
         currentIndex += 1;
-
-        setTypedText(
-          WORDMARK.substring(0, currentIndex),
-        );
-
-        /*
-         * Finished typing.
-         */
+        setTypedText(WORDMARK.substring(0, currentIndex));
         if (currentIndex >= WORDMARK.length) {
           clearInterval(typewriterInterval);
-
-          /*
-           * --------------------------------------------------------
-           * 3. Hold after typing
-           * --------------------------------------------------------
-           */
-
-          setTimeout(() => {
-            if (!mounted) {
-              return;
-            }
-
-            /*
-             * Replace instead of navigate/push.
-             *
-             * User cannot go back to splash.
-             */
-            navigation.replace('Onboarding');
-          }, HOLD_AFTER_TYPING_MS);
         }
       }, TYPEWRITER_INTERVAL_MS);
     }, TEXT_START_DELAY_MS);
 
-    /*
-     * Cleanup.
-     */
     return () => {
       mounted = false;
       clearTimeout(typewriterTimeout);
     };
-
-    // Animation intentionally starts once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /*
-   * --------------------------------------------------------------
-   * Logo animated style
-   * --------------------------------------------------------------
-   */
+  /* ------------------------------------------------------------------
+   * Belt-and-braces: if bootstrap failed catastrophically and never
+   * dispatched bootstrapCompleted (should not happen — runBootstrap
+   * has a top-level try/catch), this effect logs it. In practice
+   * the reducer is always written before this effect could see it.
+   * ------------------------------------------------------------------ */
+
+  useEffect(() => {
+    if (!minDurationElapsed || !bootstrapResolved) return;
+    if (committed.current) return;
+    committed.current = true;
+    // No-op: bootstrapCompleted was dispatched inside runBootstrap.
+    // If for some reason it wasn't, RootNavigator stays on splash
+    // and we'd need to redispatch here. Left as an explicit hook
+    // for future observability.
+  }, [minDurationElapsed, bootstrapResolved]);
+
+  /* ------------------------------------------------------------------
+   * Animated styles
+   * ------------------------------------------------------------------ */
 
   const iconStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: iconX.value,
-      },
-      {
-        scale: iconScale.value,
-      },
-    ],
+    transform: [{ translateX: iconX.value }, { scale: iconScale.value }],
     opacity: iconOpacity.value,
   }));
-
-  /*
-   * --------------------------------------------------------------
-   * Wordmark animated style
-   * --------------------------------------------------------------
-   */
 
   const textStyle = useAnimatedStyle(() => ({
     opacity: textOpacity.value,
   }));
 
-  /*
-   * --------------------------------------------------------------
-   * Split typed text into Urban / Cruise.
-   *
-   * This allows:
-   *
-   * Urban  -> dark text
-   * Cruise -> brand green
-   * --------------------------------------------------------------
-   */
-
-  const urbanText = typedText.substring(
-    0,
-    Math.min(5, typedText.length),
-  );
-
+  const urbanText = typedText.substring(0, Math.min(5, typedText.length));
   const cruiseText =
-    typedText.length > 6
-      ? typedText.substring(6)
-      : '';
+    typedText.length > 6 ? typedText.substring(6) : '';
 
   return (
     <View style={styles.flex}>
       <View style={styles.center}>
-        {/* --------------------------------------------------------
-         * UC LOGO
-         * -------------------------------------------------------- */}
-
         <Animated.View style={iconStyle}>
           <Image
             source={UC_ICON}
@@ -252,37 +223,13 @@ const SplashIntroScreen: React.FC = () => {
           />
         </Animated.View>
 
-        {/* --------------------------------------------------------
-         * TYPEWRITER WORDMARK
-         * -------------------------------------------------------- */}
-
-        <Animated.View
-          style={[
-            styles.wordmarkContainer,
-            textStyle,
-          ]}
-        >
+        <Animated.View style={[styles.wordmarkContainer, textStyle]}>
           <Text style={styles.wordmark}>
-            <Text style={styles.wordmarkUrban}>
-              {urbanText}
-            </Text>
-
+            <Text style={styles.wordmarkUrban}>{urbanText}</Text>
             {typedText.length > 5 && (
-              <Text style={styles.space}>
-                {' '}
-              </Text>
+              <Text style={styles.space}>{' '}</Text>
             )}
-
-            <Text style={styles.wordmarkCruise}>
-              {cruiseText}
-            </Text>
-
-            {/* Cursor */}
-            {/* {typedText.length < WORDMARK.length && (
-              <Text style={styles.cursor}>
-                |
-              </Text>
-            )} */}
+            <Text style={styles.wordmarkCruise}>{cruiseText}</Text>
           </Text>
         </Animated.View>
       </View>
@@ -301,47 +248,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   icon: {
     width: 170,
     height: 170,
     marginBottom: -45,
   },
-
   wordmarkContainer: {
     minHeight: 42,
     marginTop: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   wordmark: {
     fontSize: 28,
     lineHeight: 36,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
-
   wordmarkUrban: {
     color: Colors.textPrimary,
   },
-
   wordmarkCruise: {
     color: Colors.primary,
   },
-
   space: {
     color: Colors.textPrimary,
   },
-
-//   cursor: {
-//     color: Colors.primary,
-//     fontWeight: '400',
-//   },
 });

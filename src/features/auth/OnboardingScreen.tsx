@@ -2,11 +2,13 @@
  * ------------------------------------------------------------------
  * Urban Cruise — Onboarding
  * ------------------------------------------------------------------
- * Two-slide onboarding flow. On Skip or Get Started, dispatches
- * completeOnboarding() — RootNavigator then swaps this stack out for
- * AuthFlow (if unauthenticated) or the role-specific home stack
- * (if authenticated). Auto-advance is cancelled on manual swipe and
- * paused when the app is backgrounded.
+ * Two-slide onboarding flow. On Skip or Get Started:
+ *   1. Persist `hasSeenOnboarding=true` to MMKV (so future cold
+ *      starts skip onboarding entirely).
+ *   2. Dispatch completeOnboarding() to Redux (RootNavigator swaps
+ *      this stack out for AuthFlow or the role-specific home stack).
+ * NO auth checks, NO network calls — buttons are pure state writes,
+ * as agreed in the architecture doc.
  * ------------------------------------------------------------------
  */
 
@@ -49,6 +51,7 @@ import {
 } from '../../theme';
 import { useAppDispatch } from '../../store/hooks';
 import { completeOnboarding } from '../../store/slices/appSlice';
+import { persistHasSeenOnboarding } from '@app/bootstrap';
 
 /* -----------------------------------------------------------------
  * Types
@@ -248,10 +251,7 @@ const PaginationDot: React.FC<{
   });
 
   return (
-    <Animated.View
-      style={[styles.dot, animatedStyle]}
-      accessibilityRole="tab"
-    />
+    <Animated.View style={[styles.dot, animatedStyle]} accessibilityRole="tab" />
   );
 };
 
@@ -420,7 +420,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   }, [page, scheduleAdvance, clearTimer]);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', nextState => {
+    const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') scheduleAdvance();
       else clearTimer();
     });
@@ -432,9 +432,9 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   const handleFinishOnboarding = useCallback(() => {
     userInteractedRef.current = true;
     clearTimer();
-    // Marks the onboarding session as done. RootNavigator will then
-    // swap this stack out for AuthFlow (if unauthenticated) or the
-    // role-specific home stack (if authenticated).
+    // 1. Persist to MMKV (so next cold start skips onboarding).
+    persistHasSeenOnboarding();
+    // 2. Update Redux (RootNavigator swaps stack — no re-checks).
     dispatch(completeOnboarding());
   }, [clearTimer, dispatch]);
 
@@ -485,10 +485,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
               onPress={handleFinishOnboarding}
               accessibilityRole="button"
               accessibilityLabel="Get started"
-              style={({ pressed }) => [
-                styles.cta,
-                pressed && styles.ctaPressed,
-              ]}
+              style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
             >
               <Text style={styles.ctaText}>Get Started</Text>
             </Pressable>

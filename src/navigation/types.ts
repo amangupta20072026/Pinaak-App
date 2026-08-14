@@ -1,10 +1,19 @@
 // src/navigation/types.ts
 import type { NavigatorScreenParams } from '@react-navigation/native';
-import type { BookingId, QuotationId, TripId, VehicleId, DriverId, VendorId, EnquiryId } from '@app-types/ids';
+import type {
+  BookingId,
+  QuotationId,
+  TripId,
+  VehicleId,
+  DriverId,
+  VendorId,
+  EnquiryId,
+} from '@app-types/ids';
 import type { UserRole } from '@rbac/roles';
 
 /* ---------------------- Root ---------------------- */
 export type RootStackParamList = {
+  SplashIntro: undefined;
   OnboardingFlow: NavigatorScreenParams<OnboardingParamList>;
   AuthFlow: NavigatorScreenParams<AuthParamList>;
   CustomerFlow: NavigatorScreenParams<CustomerStackParamList>;
@@ -14,9 +23,10 @@ export type RootStackParamList = {
 };
 
 /* -------------------- Onboarding -------------------- */
+// SplashIntro is now handled at the ROOT level (bootstrap gate),
+// not inside OnboardingFlow.
 export type OnboardingParamList = {
   Onboarding: undefined;
-  Splash: undefined;
 };
 
 /* --------------------- Auth ------------------------- */
@@ -33,16 +43,15 @@ export type CustomerStackParamList = {
   BookingDetail: { bookingId: BookingId };
   PassengerList: { bookingId: BookingId };
   TripLive: { tripId: TripId };
-  ModificationRequest: { bookingId: BookingId };  // modal
-  AddRemark: { quotationId: QuotationId };        // modal
-  PayBalance: { bookingId: BookingId };           // modal
+  ModificationRequest: { bookingId: BookingId };
+  AddRemark: { quotationId: QuotationId };
+  PayBalance: { bookingId: BookingId };
   GstInvoice: { bookingId: BookingId };
   Feedback: { bookingId: BookingId };
   NotificationCentre: undefined;
   Support: undefined;
 };
 
-/* ------------------ Customer tabs ------------------- */
 export type CustomerTabParamList = {
   Home: undefined;
   Quotations: undefined;
@@ -55,21 +64,20 @@ export type CustomerTabParamList = {
 export type VendorStackParamList = {
   VendorTabs: NavigatorScreenParams<VendorTabParamList>;
   AssignmentDetail: { bookingId: BookingId };
-  AcceptAssignment: { bookingId: BookingId };     // modal
-  RejectAssignment: { bookingId: BookingId };     // modal
+  AcceptAssignment: { bookingId: BookingId };
+  RejectAssignment: { bookingId: BookingId };
   VehicleDetail: { vehicleId: VehicleId };
-  AddVehicle: undefined;                          // modal
+  AddVehicle: undefined;
   VehicleAvailability: { vehicleId: VehicleId };
   DriverDetail: { driverId: DriverId };
-  AddDriver: undefined;                           // modal
+  AddDriver: undefined;
   TripDetail: { tripId: TripId };
-  ChangeVehicleRequest: { tripId: TripId };       // modal
+  ChangeVehicleRequest: { tripId: TripId };
   PaymentDetail: { entryId: string };
   NotificationCentre: undefined;
   Support: undefined;
 };
 
-/* ------------------- Vendor tabs -------------------- */
 export type VendorTabParamList = {
   Dashboard: undefined;
   Bookings: undefined;
@@ -82,22 +90,21 @@ export type VendorTabParamList = {
 export type DriverStackParamList = {
   DriverTabs: NavigatorScreenParams<DriverTabParamList>;
   TripDetail: { tripId: TripId };
-  DeclineTrip: { tripId: TripId };                // modal
-  OtpEntry: { tripId: TripId };                   // modal
+  DeclineTrip: { tripId: TripId };
+  OtpEntry: { tripId: TripId };
   StartLegKm: { tripId: TripId; leg: number };
   EndLegKm: { tripId: TripId; leg: number };
   Briefing: { tripId: TripId };
-  CollectPayment: { tripId: TripId };             // modal
+  CollectPayment: { tripId: TripId };
   DriverRegistration: undefined;
   NotificationCentre: undefined;
   Support: undefined;
 };
 
-/* ------------------- Driver tabs -------------------- */
 export type DriverTabParamList = {
   Home: undefined;
   MyTrips: undefined;
-  Emergency: undefined
+  Emergency: undefined;
   Earnings: undefined;
   Profile: undefined;
 };
@@ -106,22 +113,21 @@ export type DriverTabParamList = {
 export type UcStackParamList = {
   UcTabs: NavigatorScreenParams<UcTabParamList>;
   EnquiryDetail: { enquiryId: EnquiryId };
-  CreateEnquiry: undefined;                       // modal
+  CreateEnquiry: undefined;
   QuotationBuilder: { enquiryId: EnquiryId };
-  QuotationRevision: { quotationId: QuotationId };// modal
+  QuotationRevision: { quotationId: QuotationId };
   CustomerDetail: { customerId: string };
   VendorDetail: { vendorId: VendorId };
   VendorApprovalQueue: undefined;
-  AssignVendor: { bookingId: BookingId };         // modal
+  AssignVendor: { bookingId: BookingId };
   TripMonitor: { tripId: TripId };
-  ChangeVehicleApproval: { tripId: TripId };      // modal
+  ChangeVehicleApproval: { tripId: TripId };
   PayinDetail: { entryId: string };
   PayoutDetail: { entryId: string };
   NotificationCentre: undefined;
   Support: undefined;
 };
 
-/* --------------------- UC tabs ---------------------- */
 export type UcTabParamList = {
   Dashboard: undefined;
   Bookings: undefined;

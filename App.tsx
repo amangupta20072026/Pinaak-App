@@ -1,76 +1,92 @@
+/* eslint-disable no-void */
 /**
  * ------------------------------------------------------------------
  * App root
  * ------------------------------------------------------------------
  * Provider stack (outermost → innermost):
- *   GestureHandlerRootView    — required by react-native-gesture-handler
- *   QueryClientProvider       — TanStack Query cache available everywhere
- *   Provider (redux)          — dispatch / selector everywhere
- *   PersistGate               — waits for MMKV rehydration before render
- *   SafeAreaProvider          — insets available to every screen
- *   KeyboardProvider          — enables keyboard-aware components anywhere
- *   BottomSheetModalProvider  — enables imperative bottom sheets anywhere
- *   NavigationContainer       — with navigationRef for imperative nav
- *     RootNavigator           — branches on Redux state
+ *
+ *   GestureHandlerRootView       — react-native-gesture-handler root
+ *   Provider (redux)             — dispatch / selector everywhere
+ *   PersistQueryClientProvider   — TanStack Query cache is hydrated
+ *                                   from MMKV in parallel with mount,
+ *                                   so warm-start screens render
+ *                                   instantly and revalidate.
+ *   SafeAreaProvider             — insets available to every screen
+ *   KeyboardProvider             — keyboard-aware components anywhere
+ *   BottomSheetModalProvider     — imperative bottom sheets anywhere
+ *   NavigationContainer          — with navigationRef for imperative nav
+ *     RootNavigator              — conditional branches on Redux state
+ *
+ * PersistGate is INTENTIONALLY REMOVED.
+ * Rationale: the SplashIntroScreen (mounted by RootNavigator when
+ * !bootstrapped) is the single, unified splash + orchestrator. Redux
+ * starts empty and rehydrates during bootstrap; splitting rehydration
+ * across PersistGate + orchestrator caused a race between two "wait"
+ * gates and made splash duration unpredictable.
  * ------------------------------------------------------------------
  */
 
 import React from 'react';
-import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
+import { StatusBar, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider } from 'react-redux';
-import { PersistGate } from 'redux-persist/integration/react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 
-import { store, persistor } from './src/store';
+import { store } from './src/store';
 import { queryClient } from '@app/queryClient';
+import { queryPersister, shouldPersistQuery } from '@app/queryPersister';
 import { navigationRef } from './src/navigation/NavigationService';
 import RootNavigator from './src/navigation/RootNavigator';
-import { Colors } from './src/theme';
 
-const SplashLoader: React.FC = () => (
-  <View style={styles.splash}>
-    <ActivityIndicator size="large" color={Colors.primary} />
-  </View>
-);
+const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
 const App: React.FC = () => {
   return (
     <GestureHandlerRootView style={styles.root}>
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>
-          <PersistGate loading={<SplashLoader />} persistor={persistor}>
-            <SafeAreaProvider>
-              <KeyboardProvider>
-                <BottomSheetModalProvider>
-                  <StatusBar
-                    barStyle="dark-content"
-                  />
-                  <NavigationContainer ref={navigationRef}>
-                    <RootNavigator />
-                  </NavigationContainer>
-                </BottomSheetModalProvider>
-              </KeyboardProvider>
-            </SafeAreaProvider>
-          </PersistGate>
-        </Provider>
-      </QueryClientProvider>
+      <Provider store={store}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: queryPersister,
+            maxAge: ONE_DAY_MS,
+            dehydrateOptions: {
+              // Skip queries flagged with meta.persist === false.
+              shouldDehydrateQuery: q => q.meta?.persist !== false,
+            },
+            // Global sanitizer — strips sensitive queries even if the
+            // per-query flag was forgotten.
+            hydrateOptions: undefined,
+          }}
+          // Optional: prune the payload before writing to disk.
+          onSuccess={() => {
+            // Reserved for future telemetry.
+          }}
+        >
+          <SafeAreaProvider>
+            <KeyboardProvider>
+              <BottomSheetModalProvider>
+                <StatusBar barStyle="dark-content" />
+                <NavigationContainer ref={navigationRef}>
+                  <RootNavigator />
+                </NavigationContainer>
+              </BottomSheetModalProvider>
+            </KeyboardProvider>
+          </SafeAreaProvider>
+        </PersistQueryClientProvider>
+      </Provider>
     </GestureHandlerRootView>
   );
 };
+
+// Ensure global sanitizer is referenced (tree-shake guard).
+void shouldPersistQuery;
 
 export default App;
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  splash: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

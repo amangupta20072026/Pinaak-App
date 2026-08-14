@@ -3,14 +3,14 @@
  * Redux Store
  * ------------------------------------------------------------------
  * redux-persist backed by MMKV. A slice-level transform ensures only
- * auth fields survive process kills — onboarding-seen and selected
- * role reset every session by design.
+ * durable identity fields survive process kills. Bootstrap-controlled
+ * fields (bootstrapped, appConfig, authStatus) are recomputed on
+ * every launch by the bootstrap orchestrator — persisting them would
+ * be wrong (stale) and slightly wasteful.
  *
- * Note on the `as Reducer<...>` cast below: @reduxjs/toolkit v2's
- * combineReducers returns a 3-generic Reducer<S, UnknownAction,
- * Partial<S>>, while redux-persist v6 expects a 2-generic
- * Reducer<S>. The cast bridges that gap — the runtime shape is
- * identical, only the TS signatures disagree.
+ * `hasSeenOnboarding` is persisted DIRECTLY to MMKV by the bootstrap
+ * orchestrator (not through redux-persist) so it's readable
+ * synchronously during cold start.
  * ------------------------------------------------------------------
  */
 
@@ -45,36 +45,36 @@ const rootReducer = combineReducers({
 type RootReducerState = ReturnType<typeof rootReducer>;
 
 /* -----------------------------------------------------------------
- * Persist transform for the `app` slice
- * ----------------------------------------------------------------- *
- * SubState = AppState (what lives in memory).
- * EndSubState = PersistedAppSubset (what gets written to MMKV).
- *
- * Inbound: strip session-only fields before persisting.
- * Outbound: reconstruct full AppState by combining the persisted
- * subset with the session defaults, so onboarding shows every
- * session regardless of prior sessions' state.
- */
+ * Persist transform — whitelist only durable identity fields
+ * ----------------------------------------------------------------- */
 
-type PersistedAppSubset = Pick<AppState, 'isAuthenticated' | 'userRole'>;
-
-const SESSION_DEFAULTS: Pick<
+type PersistedAppSubset = Pick<
   AppState,
-  'hasSeenOnboardingThisSession' | 'selectedRole'
-> = {
-  hasSeenOnboardingThisSession: false,
+  'userId' | 'userRole' | 'subRole' | 'entityId'
+>;
+
+const SESSION_DEFAULTS = {
+  bootstrapped: false,
+  hasSeenOnboarding: false, // read from MMKV by bootstrap
   selectedRole: null,
+  authStatus: 'unauthenticated' as const,
+  isAuthenticated: false,
+  appConfig: null,
 };
 
 const appSliceTransform = createTransform<AppState, PersistedAppSubset>(
   (inbound): PersistedAppSubset => ({
-    isAuthenticated: inbound.isAuthenticated,
+    userId: inbound.userId,
     userRole: inbound.userRole,
+    subRole: inbound.subRole,
+    entityId: inbound.entityId,
   }),
   (outbound): AppState => ({
     ...SESSION_DEFAULTS,
-    isAuthenticated: outbound.isAuthenticated,
+    userId: outbound.userId,
     userRole: outbound.userRole,
+    subRole: outbound.subRole,
+    entityId: outbound.entityId,
   }),
   { whitelist: ['app'] },
 );
@@ -85,7 +85,7 @@ const appSliceTransform = createTransform<AppState, PersistedAppSubset>(
 
 const persistConfig = {
   key: 'pinaak-root',
-  version: 1,
+  version: 2, // bumped: shape changed vs previous release
   storage: reduxMmkvStorage,
   transforms: [appSliceTransform],
 };
@@ -101,7 +101,7 @@ const persistedReducer = persistReducer(
 
 export const store = configureStore({
   reducer: persistedReducer,
-  middleware: (getDefaultMiddleware) =>
+  middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],

@@ -3,25 +3,31 @@
  * QueryClient — Root TanStack Query Config
  * ------------------------------------------------------------------
  * Sensible mobile defaults:
- *   - Retry twice on network/server errors, never on 4xx client errors
- *   - Refetch when phone regains network
- *   - No window-focus refetch (RN has no real window focus)
- *   - 30s staleTime — background refetch on remount
- *   - 5min gcTime — cache retained after last observer unmounts
+ *   - retry twice on network/server errors, never on 4xx client errors
+ *   - refetch when phone regains network
+ *   - no window-focus refetch (RN has no real window focus)
+ *   - staleTime 30s  → background refetch on remount
+ *   - gcTime 24h     → cache retained after last observer unmounts,
+ *                       so persistence has something to write to disk
+ *
+ * IMPORTANT: gcTime must be >= persister's maxAge (see App.tsx),
+ * otherwise the disk cache is discarded after 5 minutes idle and
+ * cold-start warm hydration provides no benefit.
  * ------------------------------------------------------------------
  */
 
 import { QueryClient } from '@tanstack/react-query';
 import { ApiError } from '@api/errors';
 
+const ONE_DAY_MS = 1000 * 60 * 60 * 24;
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000, // 30 seconds
-      gcTime: 5 * 60_000, // 5 minutes
+      gcTime: ONE_DAY_MS, // must be >= persister maxAge
 
       retry: (failureCount, error) => {
-        // Don't retry client errors — they won't recover on retry.
         if (error instanceof ApiError) {
           if (
             error.kind === 'unauthorized' ||
@@ -39,7 +45,7 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
     mutations: {
-      retry: 0, // never auto-retry mutations
+      retry: 0,
     },
   },
 });
