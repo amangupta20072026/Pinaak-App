@@ -37,9 +37,9 @@ import {
   Shadows,
   Spacing,
   Typography,
-} from '../../../theme';
-import { withAlpha } from '../../../components/roles';
-import type { AuthParamList } from '../../../navigation/types';
+} from '../../../../theme';
+import { withAlpha } from '../../../../components/roles';
+import type { AuthParamList } from '../../../../navigation/types';
 
 /* -----------------------------------------------------------------
  * Contact config

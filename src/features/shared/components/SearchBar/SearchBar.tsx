@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { X } from 'lucide-react-native';
 import { Colors, Radius, Spacing, Typography } from '@theme';
 
 type Props = {
@@ -28,6 +29,7 @@ export const SearchBar: React.FC<Props> = ({
         autoCapitalize="none"
         clearButtonMode="never"
       />
+
       {value.length > 0 && (
         <Pressable
           hitSlop={12}
@@ -36,8 +38,12 @@ export const SearchBar: React.FC<Props> = ({
             onClear?.();
           }}
           style={styles.clearBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
         >
-          <View style={styles.clearCircle} />
+          <View style={styles.clearHit}>
+            <X size={14} color={Colors.background} strokeWidth={3} />
+          </View>
         </Pressable>
       )}
     </View>
@@ -60,13 +66,15 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   clearBtn: {
-    padding: 6,
+    padding: 4,
     marginLeft: Spacing.xs,
   },
-  clearCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+  clearHit: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: Colors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

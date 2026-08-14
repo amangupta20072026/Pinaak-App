@@ -46,9 +46,9 @@ import {
   Shadows,
   Spacing,
   Typography,
-} from '../../../theme';
-import { useAppDispatch } from '../../../store/hooks';
-import { completeOnboarding } from '../../../store/slices/appSlice';
+} from '../../theme';
+import { useAppDispatch } from '../../store/hooks';
+import { completeOnboarding } from '../../store/slices/appSlice';
 
 /* -----------------------------------------------------------------
  * Types
@@ -279,7 +279,7 @@ const SlideOne: React.FC = memo(() => (
     <View style={styles.slideOneContent}>
       <Animated.View entering={FadeIn.duration(700)} style={styles.brandBlock}>
         <Image
-          source={require('../../../assets/images/ucwithdesignandtext.png')}
+          source={require('../../assets/images/ucwithdesignandtext.png')}
           style={styles.brandLogo}
           resizeMode="contain"
           accessibilityLabel="Urban Cruise — Car & Bus Rentals"
@@ -329,7 +329,7 @@ const SlideTwo: React.FC = memo(() => (
         style={styles.heroWrap}
       >
         <Image
-          source={require('../../../assets/images/urban-cruise-bus-onboarding-image.png')}
+          source={require('../../assets/images/urban-cruise-bus-onboarding-image.png')}
           style={styles.hero}
           resizeMode="cover"
           accessibilityLabel="Urban Cruise bus on a city highway"

@@ -27,14 +27,14 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Colors } from '../../../theme';
-import type { OnboardingParamList } from '../../../navigation/types';
+import { Colors } from '../../theme';
+import type { OnboardingParamList } from '../../navigation/types';
 
 /* ------------------------------------------------------------------
  * Assets
  * ------------------------------------------------------------------ */
 
-const UC_ICON = require('../../../assets/icons/uc-icon.png');
+const UC_ICON = require('../../assets/icons/uc-icon.png');
 
 /* ------------------------------------------------------------------
  * Animation configuration

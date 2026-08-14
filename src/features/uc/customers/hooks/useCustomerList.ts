@@ -1,27 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fixtureUcCustomersAll } from '@mocks/fixtures/ucCustomers';
 import { delayLikeApi } from '@mocks/helpers/delay';
-import type { Customer, CustomerFilter } from '../types';
+import type { Customer, StatusFilter } from '../types';
 
 export type UseCustomerListArgs = {
-  filter?: CustomerFilter;
+  status?: StatusFilter;
   search?: string;
+  page?: number;
+  pageSize?: number;
 };
 
-export function useCustomerList({ filter = 'all', search = '' }: UseCustomerListArgs = {}) {
-  const [data, setData] = useState<Customer[] | undefined>(undefined);
+export function useCustomerList({
+  status = 'all',
+  search = '',
+  page = 1,
+  pageSize = 6,
+}: UseCustomerListArgs = {}) {
+  const [all, setAll] = useState<Customer[] | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const load = useCallback(async (isRefresh: boolean = false) => {
+  const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setIsRefreshing(true);
     else setIsLoading(true);
     setError(null);
-
     try {
       await delayLikeApi();
-      setData(fixtureUcCustomersAll);
+      setAll(fixtureUcCustomersAll);
     } catch (e) {
       setError(e as Error);
     } finally {
@@ -34,12 +40,24 @@ export function useCustomerList({ filter = 'all', search = '' }: UseCustomerList
     load();
   }, [load]);
 
-  // Client-side filter + search — later this becomes server params.
+  const counts = useMemo<Record<StatusFilter, number>>(() => {
+    const acc: Record<StatusFilter, number> = {
+      all: 0,
+      active: 0,
+      inactive: 0,
+      blocked: 0,
+    };
+    (all ?? []).forEach(c => {
+      acc.all += 1;
+      acc[c.status] += 1;
+    });
+    return acc;
+  }, [all]);
+
   const filtered = useMemo(() => {
-    if (!data) return undefined;
     const q = search.trim().toLowerCase();
-    return data.filter(c => {
-      if (filter !== 'all' && c.type !== filter) return false;
+    return (all ?? []).filter(c => {
+      if (status !== 'all' && c.status !== status) return false;
       if (!q) return true;
       return (
         c.name.toLowerCase().includes(q) ||
@@ -48,23 +66,18 @@ export function useCustomerList({ filter = 'all', search = '' }: UseCustomerList
         c.city.toLowerCase().includes(q)
       );
     });
-  }, [data, filter, search]);
+  }, [all, status, search]);
 
-  const counts = useMemo(() => {
-    if (!data) return { all: 0, personal: 0, corporate: 0, event: 0 };
-    return data.reduce(
-      (acc, c) => {
-        acc.all += 1;
-        acc[c.type] += 1;
-        return acc;
-      },
-      { all: 0, personal: 0, corporate: 0, event: 0 },
-    );
-  }, [data]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageData = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize],
+  );
 
   return {
-    data: filtered,
+    data: pageData,
     counts,
+    totalPages,
     isLoading,
     isRefreshing,
     error,

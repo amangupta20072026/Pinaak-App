@@ -6,6 +6,7 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import CustomerHomeScreen from '../../features/customer/CustomerHomeScreen';
+
 import { CustomTabBar } from '../../components/navigation/CustomTabBar';
 import type { CustomerTabParamList } from '../types';
 

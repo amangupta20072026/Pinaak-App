@@ -4,7 +4,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../features/auth/LoginScreen';
 import OtpVerifyScreen from '../features/auth/OtpVerifyScreen';
-import SupportScreen from '../features/support/screens/SupportScreen';
+import SupportScreen from '../features/shared/support/screens/SupportScreen';
 import { useAppSelector } from '../store/hooks';
 import type { AuthParamList } from './types';
 

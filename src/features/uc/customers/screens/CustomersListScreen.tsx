@@ -5,82 +5,87 @@ import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 
 import {
   SafeScreen,
-  Header,
   SearchBar,
-  FilterChips,
   EmptyState,
   ErrorView,
-  Skeleton,
 } from '@shared/components';
 import { Colors, Spacing } from '@theme';
 
 import { useCustomerList } from '../hooks/useCustomerList';
-import { CustomerListItem } from '../components/CustomerListItem';
+import { CustomerCard } from '../components/CustomerCard';
+import { CustomerListHeader } from '../components/CustomerListHeader';
+import { CustomerStatusTabs } from '../components/CustomerStatusTabs';
+import { Pagination } from '../components/Pagination';
 import { CustomerContactSheet } from '../components/CustomerContactSheet';
-import type { Customer, CustomerFilter } from '../types';
+import type { Customer, StatusFilter } from '../types';
 
 const CustomersListScreen: React.FC = () => {
+  const [status, setStatus] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<CustomerFilter>('all');
+  const [showSearch, setShowSearch] = useState(false);
+  const [page, setPage] = useState(1);
+
   const [selected, setSelected] = useState<Customer | null>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
 
-  const { data, counts, isLoading, isRefreshing, error, refresh, refetch } =
-    useCustomerList({ filter, search });
+  const {
+    data,
+    counts,
+    totalPages,
+    isLoading,
+    isRefreshing,
+    error,
+    refresh,
+    refetch,
+  } = useCustomerList({ status, search, page, pageSize: 6 });
 
-  const handleRowPress = useCallback((customer: Customer) => {
-    setSelected(customer);
+  const onRowPress = useCallback((c: Customer) => {
+    setSelected(c);
     sheetRef.current?.present();
   }, []);
 
-  const handleSheetDismiss = useCallback(() => {
-    // Delay clearing selected so the sheet doesn't blink content during close animation.
+  const onSheetDismiss = useCallback(() => {
+    // small delay so content doesn't flash empty during close animation
     setTimeout(() => setSelected(null), 200);
   }, []);
 
-  const filterOptions = [
-    { key: 'all' as const, label: 'All', count: counts.all },
-    { key: 'personal' as const, label: 'Personal', count: counts.personal },
-    { key: 'corporate' as const, label: 'Corporate', count: counts.corporate },
-  ];
-
   return (
     <SafeScreen edges={['top']}>
-      <Header title="Customers" />
-
-      <View style={styles.searchWrap}>
-        <SearchBar
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search name, phone, email, city"
+      <View style={styles.headerWrap}>
+        <CustomerListHeader
+          onSearch={() => setShowSearch(v => !v)}
+          onFilter={() => {
+            /* TODO open filter sheet */
+          }}
         />
+        {showSearch && (
+          <SearchBar
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search by name, phone, email"
+          />
+        )}
       </View>
 
-      <FilterChips
-        options={filterOptions}
-        value={filter}
-        onChange={setFilter}
+      <CustomerStatusTabs
+        value={status}
+        counts={counts}
+        onChange={s => {
+          setStatus(s);
+          setPage(1);
+        }}
       />
 
-      {isLoading && !data ? (
-        <ListSkeleton />
-      ) : error ? (
+      {error ? (
         <ErrorView onRetry={refetch} />
-      ) : !data || data.length === 0 ? (
-        <EmptyState
-          title={search || filter !== 'all' ? 'No matches' : 'No customers yet'}
-          message={
-            search || filter !== 'all'
-              ? 'Try clearing filters or search.'
-              : 'When customers are added, they will appear here.'
-          }
-        />
+      ) : !isLoading && data.length === 0 ? (
+        <EmptyState title="No customers" message="Try changing filters." />
       ) : (
         <FlashList
           data={data}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <CustomerListItem customer={item} onPress={handleRowPress} />
+            <CustomerCard customer={item} onPress={onRowPress} />
           )}
           contentContainerStyle={styles.listContent}
           refreshControl={
@@ -88,7 +93,13 @@ const CustomersListScreen: React.FC = () => {
               refreshing={isRefreshing}
               onRefresh={refresh}
               tintColor={Colors.primary}
-              colors={[Colors.primary]}
+            />
+          }
+          ListFooterComponent={
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onChange={setPage}
             />
           }
         />
@@ -97,39 +108,23 @@ const CustomersListScreen: React.FC = () => {
       <CustomerContactSheet
         ref={sheetRef}
         customer={selected}
-        onDismiss={handleSheetDismiss}
+        onDismiss={onSheetDismiss}
       />
     </SafeScreen>
   );
 };
 
-const ListSkeleton: React.FC = () => (
-  <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.sm }}>
-    {[0, 1, 2, 3, 4, 5].map(i => (
-      <View key={i} style={styles.skelRow}>
-        <Skeleton width={46} height={46} radius={23} />
-        <View style={styles.skelBody}>
-          <Skeleton width="60%" height={14} />
-          <Skeleton width="40%" height={12} />
-          <Skeleton width="70%" height={12} />
-        </View>
-      </View>
-    ))}
-  </View>
-);
-
 const styles = StyleSheet.create({
-  searchWrap: {
+  headerWrap: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
-  },
-  listContent: { paddingBottom: Spacing.xl },
-  skelRow: {
-    flexDirection: 'row',
-    paddingVertical: Spacing.md,
     gap: Spacing.md,
   },
-  skelBody: { flex: 1, gap: 8, justifyContent: 'center' },
+  listContent: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xxl,
+  },
 });
 
 export default CustomersListScreen;
