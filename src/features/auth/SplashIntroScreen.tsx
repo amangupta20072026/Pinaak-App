@@ -254,29 +254,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   icon: {
-    width: 170,
-    height: 170,
-    marginBottom: -45,
+    width: 220,
+    height: 220,
+    marginBottom: -55,
   },
   wordmarkContainer: {
-    minHeight: 42,
-    marginTop: 4,
+    minHeight: 48,
+    marginTop: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wordmark: {
+    fontFamily: 'Audiowide',
     fontSize: 28,
     lineHeight: 36,
-    fontWeight: '800',
     letterSpacing: 0.2,
   },
   wordmarkUrban: {
-    color: Colors.textPrimary,
+    color: Colors.primary,
+    fontFamily: 'Audiowide',
   },
   wordmarkCruise: {
-    color: Colors.primary,
+    color: Colors.secondary,
+    fontFamily: 'Audiowide',
   },
   space: {
     color: Colors.textPrimary,
+    fontFamily: 'Audiowide',
   },
 });
