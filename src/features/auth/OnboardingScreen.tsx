@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
 
   slideOneContent: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   brandBlock: { width: '100%', alignItems: 'center' },
-  brandLogo: { width: '95%', height: 280 },
+  brandLogo: { width: '100%', height: 320 },
   taglineBlock: { marginTop: Spacing.huge, alignItems: 'center' },
   taglineLine: { ...Typography.h4, textAlign: 'center' },
   taglinePrimary: { color: Colors.primary, fontWeight: '700' },
@@ -618,6 +618,6 @@ const styles = StyleSheet.create({
     ...Shadows.md,
   },
   ctaPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  ctaText: { ...Typography.button, color: Colors.buttonPrimaryText },
+  ctaText: { ...Typography.button, color: Colors.buttonPrimaryText, fontSize: 20 },
   ctaSpacer: { height: Dimensions.buttonHeightLarge },
 });

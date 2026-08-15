@@ -708,13 +708,14 @@ const styles = StyleSheet.create({
     ...Typography.subtitle,
     color: Colors.textPrimary,
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 18,
   },
   cardSubtitle: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
     marginTop: 3,
     lineHeight: 18,
+    fontSize: 13,
   },
 
   /* OTP boxes */
@@ -770,7 +771,7 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.primary,
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 13,
   },
   otpErrorText: {
     ...Typography.bodySmall,
@@ -789,10 +790,12 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.textPrimary,
     fontWeight: '700',
+    fontSize: 14,
   },
   resendTimerText: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
+    fontSize: 13,
   },
   resendTimerAccent: {
     color: Colors.primary,
@@ -802,6 +805,7 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.primary,
     fontWeight: '700',
+    fontSize: 14,
   },
 
   /* Secure & Private */
@@ -829,12 +833,14 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.textPrimary,
     fontWeight: '700',
+    fontSize: 14,
   },
   trustSubtitle: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
     marginTop: 2,
     lineHeight: 17,
+    fontSize: 13,
   },
 
   /* CTA */
@@ -860,6 +866,7 @@ const styles = StyleSheet.create({
   ctaText: {
     ...Typography.button,
     color: Colors.buttonPrimaryText,
+    fontSize: 18,
   },
   ctaTextDisabled: {
     color: Colors.textInverse,

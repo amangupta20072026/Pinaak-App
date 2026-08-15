@@ -29,7 +29,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View, Platform } from 'react-native';
 
 import Animated, {
   Easing,
@@ -57,6 +57,7 @@ const TEXT_START_DELAY_MS = 650;
 const TYPEWRITER_INTERVAL_MS = 95;
 const OFFSCREEN_X = 420;
 const WORDMARK = 'Urban Cruise';
+const AUDIOWIDE_FONT = Platform.select({ android: 'audiowide', default: 'Audiowide' });
 
 /**
  * Minimum time the splash stays on screen. Chosen so the typewriter
@@ -254,8 +255,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   icon: {
-    width: 220,
-    height: 220,
+    width: 320,
+    height: 320,
     marginBottom: -55,
   },
   wordmarkContainer: {
@@ -265,21 +266,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   wordmark: {
-    fontFamily: 'Audiowide',
-    fontSize: 28,
+    fontFamily: AUDIOWIDE_FONT,
+    fontSize: 38,
     lineHeight: 36,
     letterSpacing: 0.2,
   },
   wordmarkUrban: {
     color: Colors.primary,
-    fontFamily: 'Audiowide',
+    fontFamily: AUDIOWIDE_FONT,
   },
   wordmarkCruise: {
     color: Colors.secondary,
-    fontFamily: 'Audiowide',
+    fontFamily: AUDIOWIDE_FONT,
   },
   space: {
     color: Colors.textPrimary,
-    fontFamily: 'Audiowide',
+    fontFamily: AUDIOWIDE_FONT,
   },
 });

@@ -40,7 +40,7 @@ import Animated, {
 import Svg, { Path } from 'react-native-svg';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-import { Colors, Shadows, Spacing, Typography } from '@theme';
+import { Colors, Spacing, Typography } from '@theme';
 import { getTabConfig, type TabRoleName } from './tabConfig';
 
 /* -----------------------------------------------------------------
@@ -188,6 +188,8 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
           <AnimatedPath
             animatedProps={animatedPathProps}
             fill={Colors.surface}
+            stroke={Colors.border}
+            strokeWidth={1}
           />
         </Svg>
 
@@ -286,7 +288,6 @@ const styles = StyleSheet.create({
   barWrap: {
     position: 'relative',
     height: BAR_HEIGHT,
-    ...Shadows.md,
   },
   tabRow: {
     flexDirection: 'row',
@@ -329,6 +330,5 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadows.sm,
   },
 });

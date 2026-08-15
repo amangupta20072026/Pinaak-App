@@ -66,7 +66,10 @@ type Props = {
  * Close icon
  * ----------------------------------------------------------------- */
 
-const CloseIcon: React.FC<{ color: string; size: number }> = ({ color, size }) => (
+const CloseIcon: React.FC<{ color: string; size: number }> = ({
+  color,
+  size,
+}) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
       d="M6 6L18 18M18 6L6 18"
@@ -143,8 +146,7 @@ const RoleSelectionSheet = forwardRef<RoleSelectionSheetRef, Props>(
           style={[
             styles.container,
             {
-              paddingBottom:
-                Math.max(insets.bottom, Spacing.md) + Spacing.md,
+              paddingBottom: Math.max(insets.bottom, Spacing.md) + Spacing.md,
             },
           ]}
         >
@@ -168,13 +170,13 @@ const RoleSelectionSheet = forwardRef<RoleSelectionSheetRef, Props>(
                 pressed && styles.closeBtnPressed,
               ]}
             >
-              <CloseIcon color={Colors.textPrimary} size={16} />
+              <CloseIcon color={Colors.white} size={16} />
             </Pressable>
           </View>
 
           {/* Role list */}
           <View style={styles.list} accessibilityRole="radiogroup">
-            {ROLES.map((role) => (
+            {ROLES.map(role => (
               <RoleCard
                 key={role.id}
                 role={role}
@@ -198,10 +200,7 @@ const RoleSelectionSheet = forwardRef<RoleSelectionSheetRef, Props>(
             ]}
           >
             <Text
-              style={[
-                styles.ctaText,
-                !canConfirm && styles.ctaTextDisabled,
-              ]}
+              style={[styles.ctaText, !canConfirm && styles.ctaTextDisabled]}
             >
               Done
             </Text>
@@ -243,7 +242,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   title: {
-    ...Typography.h3 ?? Typography.subtitle,
+    ...(Typography.h3 ?? Typography.subtitle),
     color: Colors.textPrimary,
     fontWeight: '800',
     fontSize: 20,
@@ -257,7 +256,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Radius.circle,
-    backgroundColor: withAlpha(Colors.border, 0.4),
+    backgroundColor: Colors.error,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -292,6 +291,7 @@ const styles = StyleSheet.create({
   ctaText: {
     ...Typography.button,
     color: Colors.buttonPrimaryText,
+    fontSize: 22,
   },
   ctaTextDisabled: {
     color: Colors.textInverse,
