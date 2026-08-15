@@ -12,7 +12,6 @@ import {
   type MoreSheetRef,
 } from '../../components/navigation/MoreSheet';
 import { UcDashboardScreen } from '@features/uc/dashboard';
-import { CustomersListScreen } from '@features/uc/customers';
 
 const Tab = createBottomTabNavigator<UcTabParamList>();
 
@@ -32,9 +31,9 @@ const UcTabs: React.FC = () => {
         tabBar={renderUcTabBar}
       >
         <Tab.Screen name="Dashboard" component={UcDashboardScreen} />
+        <Tab.Screen name="Quotations" component={PlaceholderScreen} />
         <Tab.Screen name="Bookings" component={PlaceholderScreen} />
-        <Tab.Screen name="AddBooking" component={PlaceholderScreen} />
-        <Tab.Screen name="Customers" component={CustomersListScreen} />
+        <Tab.Screen name="Trips" component={PlaceholderScreen} />
         <Tab.Screen
           name="More"
           component={PlaceholderScreen}

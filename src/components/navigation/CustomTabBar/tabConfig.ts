@@ -23,12 +23,10 @@ import {
   Home,
   LayoutDashboard,
   MoreHorizontal,
-  PlusCircle,
   Route,
   Siren,
   Truck,
   UserCheck,
-  Users,
   Wallet,
   type LucideProps,
 } from 'lucide-react-native';
@@ -114,17 +112,13 @@ const ucTabConfig: TabConfig = {
     label: 'Dashboard',
     color: TabPalette.green,
   },
+  Quotations: { Icon: FileText, label: 'Quotations', color: TabPalette.blue },
   Bookings: {
     Icon: CalendarCheck,
     label: 'Bookings',
     color: TabPalette.purple,
   },
-  AddBooking: {
-    Icon: PlusCircle,
-    label: 'AddBooking',
-    color: TabPalette.orange,
-  },
-  Customers: { Icon: Users, label: 'Customers', color: TabPalette.blue },
+  Trips: { Icon: Route, label: 'Trips', color: TabPalette.orange },
   More: { Icon: MoreHorizontal, label: 'More', color: TabPalette.pink },
 };
 

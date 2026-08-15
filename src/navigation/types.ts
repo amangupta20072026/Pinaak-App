@@ -112,6 +112,7 @@ export type DriverTabParamList = {
 /* --------------------- UC stack --------------------- */
 export type UcStackParamList = {
   UcTabs: NavigatorScreenParams<UcTabParamList>;
+  CustomersList: undefined;
   EnquiryDetail: { enquiryId: EnquiryId };
   CreateEnquiry: undefined;
   QuotationBuilder: { enquiryId: EnquiryId };
@@ -130,9 +131,9 @@ export type UcStackParamList = {
 
 export type UcTabParamList = {
   Dashboard: undefined;
+  Quotations: undefined;
   Bookings: undefined;
-  AddBooking: undefined;
-  Customers: undefined;
+  Trips: undefined;
   More: undefined;
 };
 

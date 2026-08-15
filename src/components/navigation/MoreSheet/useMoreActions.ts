@@ -108,6 +108,10 @@ export function useMoreActions() {
           return;
 
         /* ---- UC ---- */
+        case 'uc.customers':
+          navigate('CustomersList' as never);
+          return;
+
         case 'uc.vendors':
         case 'uc.staff':
         case 'uc.finance':

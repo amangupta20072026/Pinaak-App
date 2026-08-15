@@ -83,6 +83,7 @@ export type MoreActionId =
   | 'driver.incidents'
   | 'driver.rewards'
   // UC
+  | 'uc.customers'
   | 'uc.vendors'
   | 'uc.staff'
   | 'uc.finance'
@@ -317,6 +318,13 @@ const driverMore: MoreItem[] = [
 ];
 
 const ucMore: MoreItem[] = [
+  {
+    key: 'customers',
+    label: 'Customers',
+    Icon: Users,
+    color: Palette.blue,
+    actionId: 'uc.customers',
+  },
   {
     key: 'profile',
     label: 'Profile',
