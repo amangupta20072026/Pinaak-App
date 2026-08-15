@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
 
   slideOneContent: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   brandBlock: { width: '100%', alignItems: 'center' },
-  brandLogo: { width: '85%', height: 220 },
+  brandLogo: { width: '95%', height: 280 },
   taglineBlock: { marginTop: Spacing.huge, alignItems: 'center' },
   taglineLine: { ...Typography.h4, textAlign: 'center' },
   taglinePrimary: { color: Colors.primary, fontWeight: '700' },
