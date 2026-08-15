@@ -57,7 +57,7 @@ export type CustomerTabParamList = {
   Quotations: undefined;
   Bookings: undefined;
   Payments: undefined;
-  Profile: undefined;
+  More: undefined;
 };
 
 /* ------------------- Vendor stack ------------------- */
@@ -83,7 +83,7 @@ export type VendorTabParamList = {
   Bookings: undefined;
   Fleet: undefined;
   Drivers: undefined;
-  Profile: undefined;
+  More: undefined;
 };
 
 /* ------------------- Driver stack ------------------- */
@@ -106,7 +106,7 @@ export type DriverTabParamList = {
   MyTrips: undefined;
   Emergency: undefined;
   Earnings: undefined;
-  Profile: undefined;
+  More: undefined;
 };
 
 /* --------------------- UC stack --------------------- */
@@ -133,7 +133,7 @@ export type UcTabParamList = {
   Bookings: undefined;
   AddBooking: undefined;
   Customers: undefined;
-  Profile: undefined;
+  More: undefined;
 };
 
 /* ================================================================

@@ -22,11 +22,11 @@ import {
   FileText,
   Home,
   LayoutDashboard,
+  MoreHorizontal,
   PlusCircle,
   Route,
   Siren,
   Truck,
-  User,
   UserCheck,
   Users,
   Wallet,
@@ -81,7 +81,7 @@ const customerTabConfig: TabConfig = {
     color: TabPalette.purple,
   },
   Payments: { Icon: CreditCard, label: 'Payments', color: TabPalette.amber },
-  Profile: { Icon: User, label: 'Profile', color: TabPalette.pink },
+  More: { Icon: MoreHorizontal, label: 'More', color: TabPalette.pink },
 };
 
 const vendorTabConfig: TabConfig = {
@@ -97,7 +97,7 @@ const vendorTabConfig: TabConfig = {
   },
   Fleet: { Icon: Truck, label: 'Fleet', color: TabPalette.orange },
   Drivers: { Icon: UserCheck, label: 'Drivers', color: TabPalette.blue },
-  Profile: { Icon: User, label: 'Profile', color: TabPalette.pink },
+  More: { Icon: MoreHorizontal, label: 'More', color: TabPalette.pink },
 };
 
 const driverTabConfig: TabConfig = {
@@ -105,7 +105,7 @@ const driverTabConfig: TabConfig = {
   MyTrips: { Icon: Route, label: 'My Trips', color: TabPalette.blue },
   Emergency: { Icon: Siren, label: 'Emergency', color: TabPalette.red },
   Earnings: { Icon: Wallet, label: 'Earnings', color: TabPalette.amber },
-  Profile: { Icon: User, label: 'Profile', color: TabPalette.pink },
+  More: { Icon: MoreHorizontal, label: 'More', color: TabPalette.pink },
 };
 
 const ucTabConfig: TabConfig = {
@@ -119,9 +119,13 @@ const ucTabConfig: TabConfig = {
     label: 'Bookings',
     color: TabPalette.purple,
   },
-  AddBooking: { Icon: PlusCircle, label: 'AddBooking', color: TabPalette.orange },
+  AddBooking: {
+    Icon: PlusCircle,
+    label: 'AddBooking',
+    color: TabPalette.orange,
+  },
   Customers: { Icon: Users, label: 'Customers', color: TabPalette.blue },
-  Profile: { Icon: User, label: 'Profile', color: TabPalette.pink },
+  More: { Icon: MoreHorizontal, label: 'More', color: TabPalette.pink },
 };
 
 const CONFIG_MAP: Record<TabRoleName, TabConfig> = {

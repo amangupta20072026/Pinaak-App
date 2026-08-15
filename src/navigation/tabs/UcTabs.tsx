@@ -1,14 +1,18 @@
 // src/navigation/tabs/UcTabs.tsx
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   createBottomTabNavigator,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import type { UcTabParamList } from '../types';
 import { CustomTabBar } from '../../components/navigation/CustomTabBar';
+import {
+  MoreSheet,
+  type MoreSheetRef,
+} from '../../components/navigation/MoreSheet';
 import { UcDashboardScreen } from '@features/uc/dashboard';
-import { CustomersListScreen } from '@features/uc/customers'
+import { CustomersListScreen } from '@features/uc/customers';
 
 const Tab = createBottomTabNavigator<UcTabParamList>();
 
@@ -19,17 +23,32 @@ const renderUcTabBar = (props: BottomTabBarProps) => (
 );
 
 const UcTabs: React.FC = () => {
+  const moreSheetRef = useRef<MoreSheetRef>(null);
+
   return (
-    <Tab.Navigator
-      screenOptions={{ headerShown: false }}
-      tabBar={renderUcTabBar}
-    >
-      <Tab.Screen name="Dashboard" component={UcDashboardScreen} />
-      <Tab.Screen name="Bookings" component={PlaceholderScreen} />
-      <Tab.Screen name="AddBooking" component={PlaceholderScreen} />
-      <Tab.Screen name="Customers" component={CustomersListScreen} />
-      <Tab.Screen name="Profile" component={PlaceholderScreen} />
-    </Tab.Navigator>
+    <>
+      <Tab.Navigator
+        screenOptions={{ headerShown: false }}
+        tabBar={renderUcTabBar}
+      >
+        <Tab.Screen name="Dashboard" component={UcDashboardScreen} />
+        <Tab.Screen name="Bookings" component={PlaceholderScreen} />
+        <Tab.Screen name="AddBooking" component={PlaceholderScreen} />
+        <Tab.Screen name="Customers" component={CustomersListScreen} />
+        <Tab.Screen
+          name="More"
+          component={PlaceholderScreen}
+          listeners={{
+            tabPress: e => {
+              e.preventDefault();
+              moreSheetRef.current?.present();
+            },
+          }}
+        />
+      </Tab.Navigator>
+
+      <MoreSheet ref={moreSheetRef} role="uc" />
+    </>
   );
 };
 
