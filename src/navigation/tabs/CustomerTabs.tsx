@@ -1,5 +1,15 @@
 // src/navigation/tabs/CustomerTabs.tsx
 
+/**
+ * ==================================================================
+ * CustomerTabs — Tab navigator for the Customer role
+ * ==================================================================
+ * See UcTabs.tsx for the full one-way-data-flow contract that
+ * governs how tapping tabs interacts with the More sheet.
+ * Same rules apply here: non-More tabs never touch the sheet.
+ * ==================================================================
+ */
+
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   createBottomTabNavigator,
@@ -13,6 +23,7 @@ import {
 } from '../../components/navigation/CustomTabBar';
 import {
   MoreSheet,
+  SheetDismissOnRouteChange,
   type MoreSheetRef,
 } from '../../components/navigation/MoreSheet';
 import type { CustomerTabParamList } from '../types';
@@ -30,16 +41,32 @@ const CustomerTabs: React.FC = () => {
 
   const renderTabBar = useCallback(
     (props: BottomTabBarProps) => (
-      <CustomTabBar
-        {...props}
-        role="customer"
-        overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
-      />
+      <>
+        <SheetDismissOnRouteChange
+          tabIndex={props.state.index}
+          sheetRef={moreSheetRef}
+        />
+        <CustomTabBar
+          {...props}
+          role="customer"
+          overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
+        />
+      </>
     ),
     [isMoreSheetOpen],
   );
 
   const screenOptions = useMemo(() => ({ headerShown: false }), []);
+
+  const openMoreListeners = useMemo(
+    () => ({
+      tabPress: (e: { preventDefault: () => void }) => {
+        e.preventDefault();
+        moreSheetRef.current?.present();
+      },
+    }),
+    [],
+  );
 
   return (
     <>
@@ -51,12 +78,7 @@ const CustomerTabs: React.FC = () => {
         <Tab.Screen
           name="More"
           component={PlaceholderScreen}
-          listeners={{
-            tabPress: e => {
-              e.preventDefault();
-              moreSheetRef.current?.present();
-            },
-          }}
+          listeners={openMoreListeners}
         />
       </Tab.Navigator>
 

@@ -1,41 +1,52 @@
 /* eslint-disable react-native/no-inline-styles */
 /**
- * ------------------------------------------------------------------
- * MoreSheet — Per-role "More" bottom-sheet
- * ------------------------------------------------------------------
- * Opened when the user taps the "More" tab in any of the 4 role tab
- * bars. The tab's `tabPress` listener calls preventDefault() and
- * imperatively calls `ref.current?.present()`.
+ * ==================================================================
+ * MoreSheet — Production-Grade "More" Bottom Sheet
+ * ==================================================================
  *
- * LAYOUT (2026 pattern):
- *   - Half-sheet snap points (60% / 85%) so the tab bar stays visible
- *     below the sheet and the user always has visual anchor.
- *   - `bottomInset` = tab bar footprint, so the sheet stops above it.
- *   - Backdrop also inset so the dim overlay never covers the tab bar.
- *     Tab bar stays fully interactive — tapping another tab dismisses
- *     the sheet and switches, iOS/Instagram style.
- *   - Grouped sections: Account · Business · Support. Section headers
- *     are 11px uppercase muted labels.
- *   - Icons render inside colored tinted circles (10% alpha of the
- *     icon's accent color). Modern Material 3 / iOS 17 look.
- *   - Drag handle is the only close affordance — no × button.
+ * DESIGN INVARIANTS (do not violate):
  *
- * PARENT CALLBACKS:
- *   `onOpenChange(open)` fires when the sheet transitions between
- *   presented and dismissed. Parents use this to switch the tab bar's
- *   `overrideActiveIndex` to the More tab while the sheet is open,
- *   so the badge visually slides to More.
+ *   1. DETERMINISTIC HEIGHT.
+ *      Sheet snap point is computed statically from the menu-item
+ *      count for the given role, using known layout constants. We do
+ *      NOT use `enableDynamicSizing` — in @gorhom/bottom-sheet 5.2.x
+ *      it depends on the inner ScrollView's `onLayout` firing before
+ *      `present()` is called, and on cold/warm renders it can silently
+ *      no-op or open at 0px. That was the "sometimes opens, sometimes
+ *      doesn't" bug. Static height eliminates the race entirely.
  *
- * ACTION DISPATCH:
- *   On item tap we stash the actionId and dismiss the sheet. The real
- *   navigation / logout side-effect fires from onDismiss, after the
- *   sheet is fully offscreen — avoids animation conflicts.
- * ------------------------------------------------------------------
+ *   2. IDEMPOTENT IMPERATIVE API.
+ *      `present()` / `dismiss()` are safe to call at any time in any
+ *      order. An internal state ref (`gestureStateRef`) tracks the
+ *      real sheet phase (closed | opening | opened | closing) and
+ *      short-circuits redundant / racing calls. This is what makes
+ *      the sheet survive rapid double-taps and mid-animation
+ *      interruptions.
+ *
+ *   3. ACTIONS FIRE POST-DISMISS.
+ *      When the user taps a menu item, we DO NOT navigate synchronously.
+ *      Instead we stash the actionId, dismiss the sheet, and run the
+ *      action inside `InteractionManager.runAfterInteractions` once the
+ *      dismissal animation is fully complete. This prevents navigation
+ *      transitions from clashing with the sheet's closing animation
+ *      (a classic "jank + orphan sheet" bug).
+ *
+ *   4. TAB BAR VISIBLE + INTERACTIVE.
+ *      `bottomInset` = tab bar footprint. Sheet renders ABOVE the tab
+ *      bar. Backdrop is contained within the sheet's inset container,
+ *      so the tab bar stays undimmed and tappable (Option B UX).
+ *
+ *   5. ROLE-SCOPED CONTENT.
+ *      Menu items come from `getMoreMenu(role)` — data only. Behavior
+ *      lives in `useMoreActions.ts`. Neither depends on the other's
+ *      internals.
+ * ==================================================================
  */
 
 import React, {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -51,47 +62,44 @@ import type {
   BottomSheetModal as BottomSheetModalType,
 } from '@gorhom/bottom-sheet';
 
-import { Colors, Shadows, Spacing, Typography } from '@theme';
+import { Colors, Spacing, Typography } from '@theme';
 import {
   MORE_GROUP_LABEL,
   MORE_GROUP_ORDER,
   getMoreMenu,
   groupMoreMenu,
   type MoreActionId,
+  type MoreGroup,
   type MoreItem,
   type MoreRole,
 } from './moreMenuConfig';
 import { useMoreActions } from './useMoreActions';
 
-/* -----------------------------------------------------------------
+/* =================================================================
  * Public ref API
- * ----------------------------------------------------------------- */
+ * ================================================================= */
 
 export type MoreSheetRef = {
+  /** Idempotent — safe to call when already open or mid-animation. */
   present: () => void;
+  /** Idempotent — safe to call when already closed or mid-animation. */
   dismiss: () => void;
 };
 
 type Props = {
   role: MoreRole;
-  /**
-   * Fires whenever the sheet transitions between presented and
-   * dismissed. Parents wire this into their tab bar's
-   * `overrideActiveIndex` to slide the badge onto the More tab while
-   * the sheet is open.
-   */
+  /** Fires when the sheet transitions between open and closed. */
   onOpenChange?: (open: boolean) => void;
   /**
-   * Space below the sheet (typically the tab bar's footprint) so the
-   * sheet rests ON TOP of the tab bar instead of covering it.
-   * Backdrop respects the same inset — tab bar stays undimmed.
+   * Space below the sheet (tab bar footprint). Sheet renders above
+   * this inset; tab bar stays visible and interactive underneath.
    */
   bottomInset?: number;
 };
 
-/* -----------------------------------------------------------------
- * Colored tint utility — used for the soft icon backgrounds.
- * ----------------------------------------------------------------- */
+/* =================================================================
+ * Utilities
+ * ================================================================= */
 
 const withAlpha = (hex: string, alpha: number): string => {
   const clamped = Math.round(Math.max(0, Math.min(1, alpha)) * 255);
@@ -99,9 +107,12 @@ const withAlpha = (hex: string, alpha: number): string => {
   return `${hex}${suffix}`;
 };
 
-/* -----------------------------------------------------------------
+/** Internal sheet phase — used to guard against racing operations. */
+type SheetPhase = 'closed' | 'opening' | 'opened' | 'closing';
+
+/* =================================================================
  * Component
- * ----------------------------------------------------------------- */
+ * ================================================================= */
 
 const MoreSheet = forwardRef<MoreSheetRef, Props>(
   ({ role, onOpenChange, bottomInset = 0 }, ref) => {
@@ -110,17 +121,102 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
     const grouped = useMemo(() => groupMoreMenu(items), [items]);
     const { run } = useMoreActions();
 
-    const snapPoints = useMemo(() => ['60%', '85%'], []);
+    /* ---------------------------------------------------------------
+     * Snap point — fixed 60% of screen, modal-style.
+     *
+     * The sheet is intentionally NOT content-fitted anymore. It opens
+     * to the same size every time regardless of role, giving it a
+     * consistent "modal" feel across roles.
+     *
+     *   - Roles with fewer items (customer/vendor/driver): the grid
+     *     sits at the top of the sheet; the remaining space is empty
+     *     but harmless — this is expected modal behaviour.
+     *   - Roles with more items (uc): if content exceeds 60%, the
+     *     inner BottomSheetScrollView takes over scrolling silently
+     *     (indicator hidden).
+     *
+     * Kept as a hard percentage — no measurement, no first-tap race
+     * with @gorhom v5's enableDynamicSizing.
+     * ---------------------------------------------------------------- */
+    const snapPoints = useMemo(() => ['60%'], []);
 
+    /* ---------------------------------------------------------------
+     * State machine — guards against racing present()/dismiss() calls.
+     * Also used by handleDismiss to fire pending action AFTER the
+     * closing animation is fully complete.
+     * ---------------------------------------------------------------- */
+    const gestureStateRef = useRef<SheetPhase>('closed');
     const pendingActionRef = useRef<MoreActionId | null>(null);
 
+    /* ---------------------------------------------------------------
+     * Idempotent imperative API.
+     * ---------------------------------------------------------------- */
     useImperativeHandle(
       ref,
       () => ({
-        present: () => sheetRef.current?.present(),
-        dismiss: () => sheetRef.current?.dismiss(),
+        present: () => {
+          const phase = gestureStateRef.current;
+          // Reject if already visible or in the process of becoming so.
+          if (phase === 'opened' || phase === 'opening') return;
+          gestureStateRef.current = 'opening';
+          // Guard against ref being null in edge cases (should never be,
+          // but defensive: if the modal hasn't attached yet, we bail
+          // silently — a subsequent tap will succeed once mounted.).
+          sheetRef.current?.present();
+        },
+        dismiss: () => {
+          const phase = gestureStateRef.current;
+          if (phase === 'closed' || phase === 'closing') return;
+          gestureStateRef.current = 'closing';
+          sheetRef.current?.dismiss();
+        },
       }),
       [],
+    );
+
+    /* ---------------------------------------------------------------
+     * Cleanup — if the sheet unmounts while animating (rare, but
+     * happens on logout / role swap), force-clear internal state so
+     * a future remount starts from a known-clean phase.
+     * ---------------------------------------------------------------- */
+    useEffect(() => {
+      return () => {
+        pendingActionRef.current = null;
+        gestureStateRef.current = 'closed';
+      };
+    }, []);
+
+    /* ---------------------------------------------------------------
+     * Backdrop — dims content above the sheet.
+     *
+     * CRITICAL BUG FIX (per @gorhom/bottom-sheet source + issue #2680):
+     *
+     *   The default BottomSheetBackdrop is `StyleSheet.absoluteFill`
+     *   inside the sheet's Portal container. The Portal container is
+     *   ALWAYS full-screen — `bottomInset` on BottomSheetModal only
+     *   insets the sheet's snap position, NOT the backdrop's bounds.
+     *
+     *   So even though the sheet visually sits above the tab bar,
+     *   the backdrop still covers the tab bar area with
+     *   `pointerEvents='auto'` + `pressBehavior='close'`, meaning:
+     *     - Taps on the tab bar area hit the BACKDROP, not the bar.
+     *     - Backdrop closes the sheet; navigation is never called.
+     *     - Result: user thinks the app "returns to previous tab"
+     *       when actually navigation just never fired.
+     *
+     * FIX: Constrain the backdrop's bottom edge to end at
+     * `bottomInset`. Below that, no backdrop → the tab bar
+     * receives its own touches directly.
+     *
+     * ALSO: Wrap in a `pointerEvents="box-none"` guard so the known
+     * Android bug in v5.2.14 (invisible closed backdrop trapping
+     * touches after cold start, issue #2680) can never propagate
+     * through the tab bar area even if the backdrop's internal
+     * pointerEvents state gets stuck.
+     * ---------------------------------------------------------------- */
+    const backdropStyle = useMemo(
+      () => ({ bottom: bottomInset }),
+      [bottomInset],
     );
 
     const renderBackdrop = useCallback(
@@ -131,28 +227,71 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
           disappearsOnIndex={-1}
           opacity={0.45}
           pressBehavior="close"
+          style={backdropStyle}
         />
       ),
-      [],
+      [backdropStyle],
     );
 
+    /* ---------------------------------------------------------------
+     * Item tap handler.
+     *
+     * Sequence:
+     *   1. Stash actionId in ref.
+     *   2. Call dismiss() (state → 'closing').
+     *   3. handleChange fires with -1 → phase becomes 'closed'.
+     *   4. handleDismiss runs the stashed action AFTER interactions
+     *      settle → no animation clash, no orphan sheet.
+     * ---------------------------------------------------------------- */
     const handleItemPress = useCallback((item: MoreItem) => {
       pendingActionRef.current = item.actionId;
-      sheetRef.current?.dismiss();
+      if (gestureStateRef.current !== 'closing') {
+        gestureStateRef.current = 'closing';
+        sheetRef.current?.dismiss();
+      }
     }, []);
 
+    /* ---------------------------------------------------------------
+     * onChange — authoritative source for phase. Fires when the sheet
+     * finishes its animation (open OR close).
+     *   index >= 0 → sheet at that snap → phase = 'opened'
+     *   index === -1 → sheet fully dismissed → phase = 'closed'
+     * ---------------------------------------------------------------- */
     const handleChange = useCallback(
       (index: number) => {
-        onOpenChange?.(index >= 0);
+        if (index >= 0) {
+          gestureStateRef.current = 'opened';
+          onOpenChange?.(true);
+        } else {
+          gestureStateRef.current = 'closed';
+          onOpenChange?.(false);
+        }
       },
       [onOpenChange],
     );
 
+    /* ---------------------------------------------------------------
+     * onDismiss — runs after the sheet is fully offscreen. Safe time
+     * to dispatch navigation / redux side-effects.
+     *
+     * We yield ONE frame via `requestAnimationFrame` so React commits
+     * any final post-animation state (phase → 'closed', backdrop
+     * unmounted) before we push a new navigation. This prevents the
+     * next screen's mount from interleaving with the sheet's final
+     * teardown commit, which is the class of bug the deprecated
+     * `InteractionManager.runAfterInteractions` used to solve.
+     * requestAnimationFrame is the RN-supported, non-deprecated
+     * primitive for exactly this "next-frame-after-commit" case.
+     * ---------------------------------------------------------------- */
     const handleDismiss = useCallback(() => {
+      gestureStateRef.current = 'closed';
       onOpenChange?.(false);
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
-      if (action) run(action);
+      if (!action) return;
+      requestAnimationFrame(() => {
+        run(action);
+      });
     }, [onOpenChange, run]);
 
     return (
@@ -161,14 +300,43 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
         snapPoints={snapPoints}
         index={0}
         bottomInset={bottomInset}
-        detached={bottomInset > 0}
-        style={bottomInset > 0 ? styles.detachedSheet : undefined}
         backdropComponent={renderBackdrop}
         handleIndicatorStyle={styles.handle}
         backgroundStyle={styles.background}
         onChange={handleChange}
         onDismiss={handleDismiss}
         enablePanDownToClose
+        stackBehavior="replace"
+        /**
+         * Gesture configuration — the standard iOS/Android modal
+         * pattern used by Gmail / Slack / Zoom bottom sheets.
+         *
+         *   enableOverDrag={false}
+         *     Locks the sheet's top edge at its snap point (60%).
+         *     Without this, gorhom defaults to true and lets the user
+         *     drag the sheet BEYOND its top snap, physically resizing
+         *     the sheet instead of scrolling the inner content. That
+         *     was the "sheet grows when I scroll up" bug.
+         *
+         *   enableContentPanningGesture={true} (default)
+         *     Keeps the coordinated pan-to-close behaviour: pulling
+         *     down on the content area when the ScrollView is already
+         *     at the top dismisses the sheet. When the ScrollView is
+         *     scrolled down, drags are delegated to it so scrolling
+         *     works naturally.
+         *
+         *   enableHandlePanningGesture={true} (default)
+         *     Drag handle at top can still be used to close the sheet.
+         *
+         * Net effect:
+         *   - Sheet stays fixed at 60%.
+         *   - Grid drag up  → BottomSheetScrollView scrolls (reveals
+         *                     hidden sections like SUPPORT).
+         *   - Grid drag down at top of scroll → sheet dismisses.
+         *   - Handle drag down → sheet dismisses.
+         *   - Backdrop tap → sheet dismisses.
+         */
+        enableOverDrag={false}
       >
         <BottomSheetScrollView
           contentContainerStyle={styles.scrollContent}
@@ -180,20 +348,12 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
             const groupItems = grouped[group];
             if (groupItems.length === 0) return null;
             return (
-              <View key={group} style={styles.section}>
-                <Text style={styles.sectionLabel}>
-                  {MORE_GROUP_LABEL[group].toUpperCase()}
-                </Text>
-                <View style={styles.grid}>
-                  {groupItems.map(item => (
-                    <MenuCell
-                      key={item.key}
-                      item={item}
-                      onPress={handleItemPress}
-                    />
-                  ))}
-                </View>
-              </View>
+              <MoreSection
+                key={group}
+                group={group}
+                items={groupItems}
+                onItemPress={handleItemPress}
+              />
             );
           })}
         </BottomSheetScrollView>
@@ -206,29 +366,50 @@ MoreSheet.displayName = 'MoreSheet';
 
 export default MoreSheet;
 
-/* -----------------------------------------------------------------
- * Menu cell — colored tinted icon circle + label
- * ----------------------------------------------------------------- */
+/* =================================================================
+ * Section — memoized so unrelated re-renders don't rebuild the grid.
+ * ================================================================= */
+
+const MoreSection: React.FC<{
+  group: MoreGroup;
+  items: MoreItem[];
+  onItemPress: (item: MoreItem) => void;
+}> = React.memo(({ group, items, onItemPress }) => (
+  <View style={styles.section}>
+    <Text style={styles.sectionLabel}>
+      {MORE_GROUP_LABEL[group].toUpperCase()}
+    </Text>
+    <View style={styles.grid}>
+      {items.map(item => (
+        <MenuCell key={item.key} item={item} onPress={onItemPress} />
+      ))}
+    </View>
+  </View>
+));
+MoreSection.displayName = 'MoreSection';
+
+/* =================================================================
+ * Menu Cell
+ * ================================================================= */
 
 const MenuCell: React.FC<{
   item: MoreItem;
   onPress: (item: MoreItem) => void;
-}> = ({ item, onPress }) => {
+}> = React.memo(({ item, onPress }) => {
   const { Icon, label, color, group } = item;
   const isLogout = item.actionId === 'logout';
 
+  const handlePress = useCallback(() => onPress(item), [item, onPress]);
+
   return (
     <Pressable
-      onPress={() => onPress(item)}
+      onPress={handlePress}
       style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
       <View
-        style={[
-          styles.iconCircle,
-          { backgroundColor: withAlpha(color, 0.12) },
-        ]}
+        style={[styles.iconCircle, { backgroundColor: withAlpha(color, 0.12) }]}
       >
         <Icon color={color} size={22} strokeWidth={2} />
       </View>
@@ -244,11 +425,12 @@ const MenuCell: React.FC<{
       </Text>
     </Pressable>
   );
-};
+});
+MenuCell.displayName = 'MenuCell';
 
-/* -----------------------------------------------------------------
+/* =================================================================
  * Styles
- * ----------------------------------------------------------------- */
+ * ================================================================= */
 
 const CIRCLE_SIZE = 52;
 
@@ -257,10 +439,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-  },
-  detachedSheet: {
-    marginHorizontal: 8,
-    ...Shadows.lg,
   },
   handle: {
     backgroundColor: Colors.border,

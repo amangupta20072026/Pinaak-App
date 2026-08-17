@@ -56,7 +56,7 @@ import { completeOnboarding } from '../../store/slices/appSlice';
  * Types
  * ----------------------------------------------------------------- */
 
-type IconTint = 'primary' | 'secondary';
+type IconTint = 'primary' | 'secondary' | 'accent' | 'info';
 type FeatureIconProps = { color: string; size: number };
 type Feature = {
   id: string;
@@ -64,6 +64,13 @@ type Feature = {
   description: string;
   Icon: React.FC<FeatureIconProps>;
   tint: IconTint;
+};
+
+const TINT_COLORS: Record<IconTint, string> = {
+  primary: Colors.primary,
+  secondary: Colors.secondary,
+  accent: Colors.accent,
+  info: Colors.info,
 };
 
 export type OnboardingScreenProps = {
@@ -92,27 +99,23 @@ const ShieldIcon: React.FC<FeatureIconProps> = ({ color, size }) => (
   </Svg>
 );
 
-const PersonIcon: React.FC<FeatureIconProps> = ({ color, size }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx={12} cy={8} r={3.5} stroke={color} strokeWidth={1.8} />
-    <Path
-      d="M5 20c1.4-3.5 3.9-5 7-5s5.6 1.5 7 5"
-      stroke={color}
-      strokeWidth={1.8}
-      strokeLinecap="round"
-    />
-  </Svg>
-);
-
-const MapPinIcon: React.FC<FeatureIconProps> = ({ color, size }) => (
+const BusIcon: React.FC<FeatureIconProps> = ({ color, size }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M12 21.5s7-5.8 7-11.5a7 7 0 1 0-14 0c0 5.7 7 11.5 7 11.5z"
+      d="M4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9"
       stroke={color}
       strokeWidth={1.8}
       strokeLinejoin="round"
     />
-    <Circle cx={12} cy={10} r={2.5} stroke={color} strokeWidth={1.8} />
+    <Path
+      d="M4 16h16v2a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-.5H7v.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2z"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinejoin="round"
+    />
+    <Path d="M4 11h16" stroke={color} strokeWidth={1.8} />
+    <Circle cx={7.5} cy={16.5} r={1.3} stroke={color} strokeWidth={1.6} />
+    <Circle cx={16.5} cy={16.5} r={1.3} stroke={color} strokeWidth={1.6} />
   </Svg>
 );
 
@@ -145,6 +148,29 @@ const HeadsetIcon: React.FC<FeatureIconProps> = ({ color, size }) => (
   </Svg>
 );
 
+// Simple tricolor flag — deliberately not a country silhouette. At icon
+// size (~20-24px) a hand-approximated India outline reads as a smudge;
+// flat geometric bands + chakra dot stay crisp at any size and are
+// instantly recognizable as India. Colors are the flag's real tricolor
+// (not tinted via the `color` prop) so it always reads correctly; the
+// surrounding circular chip still picks up the feature's tint color.
+const IndiaFlagIcon: React.FC<FeatureIconProps> = ({ size }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path d="M4 6h16v4H4z" fill="#FF9933" />
+    <Path d="M4 10h16v4H4z" fill="#FFFFFF" />
+    <Path d="M4 14h16v4H4z" fill="#138808" />
+    <Circle
+      cx={12}
+      cy={12}
+      r={1.6}
+      fill="none"
+      stroke="#000080"
+      strokeWidth={0.6}
+    />
+    <Circle cx={12} cy={12} r={0.3} fill="#000080" />
+  </Svg>
+);
+
 /* -----------------------------------------------------------------
  * Constants
  * ----------------------------------------------------------------- */
@@ -154,32 +180,32 @@ const AUTO_ADVANCE_DEFAULT_MS = 5000;
 
 const FEATURES: Feature[] = [
   {
-    id: 'safe',
-    title: 'Safe & Reliable',
-    description: 'Well maintained buses for your safety',
-    Icon: ShieldIcon,
-    tint: 'primary',
-  },
-  {
-    id: 'drivers',
-    title: 'Professional Drivers',
-    description: 'Experienced & verified chauffeurs',
-    Icon: PersonIcon,
-    tint: 'secondary',
-  },
-  {
     id: 'pan-india',
     title: 'Pan India Service',
-    description: 'Available in 100+ cities across India',
-    Icon: MapPinIcon,
+    description: 'Available in 21+ Cities across India',
+    Icon: IndiaFlagIcon,
     tint: 'primary',
+  },
+  {
+    id: 'vehicles',
+    title: 'Wide Range of Vehicles',
+    description: 'Vehicles available from 5-Seater to 55-Seater',
+    Icon: BusIcon,
+    tint: 'secondary',
   },
   {
     id: 'support',
     title: '24/7 Support',
-    description: "We're here to assist you anytime",
+    description: "We're here to assist you anytime, anywhere",
     Icon: HeadsetIcon,
-    tint: 'secondary',
+    tint: 'accent',
+  },
+  {
+    id: 'trusted',
+    title: 'Trusted & Reliable',
+    description: 'Trusted by 500+ Companies',
+    Icon: ShieldIcon,
+    tint: 'info',
   },
 ];
 
@@ -197,7 +223,7 @@ const withAlpha = (hex: string, alpha: number): string => {
 const FeatureCard: React.FC<{ feature: Feature; index: number }> = memo(
   ({ feature, index }) => {
     const { Icon, title, description, tint } = feature;
-    const iconColor = tint === 'primary' ? Colors.primary : Colors.secondary;
+    const iconColor = TINT_COLORS[tint];
     const iconBg = withAlpha(iconColor, 0.14);
 
     return (
@@ -208,7 +234,7 @@ const FeatureCard: React.FC<{ feature: Feature; index: number }> = memo(
         <View style={[styles.cardIconWrap, { backgroundColor: iconBg }]}>
           <Icon color={iconColor} size={Dimensions.iconMd} />
         </View>
-        <Text style={styles.cardTitle} numberOfLines={1}>
+        <Text style={styles.cardTitle} numberOfLines={2}>
           {title}
         </Text>
         <Text style={styles.cardDescription} numberOfLines={2}>
@@ -298,9 +324,9 @@ const SlideOne: React.FC = memo(() => (
           <Text style={styles.taglinePrimary}>Preferred</Text>
         </Text>
         <Text style={styles.taglineLine}>
-          <Text style={styles.taglinePrimary}>Bus </Text>
+          <Text style={styles.taglinePrimary}>Vehicle </Text>
           <Text style={styles.taglineDark}>Rental </Text>
-          <Text style={styles.taglineAccent}>Services</Text>
+          <Text style={styles.taglineAccent}>Service</Text>
         </Text>
       </Animated.View>
     </View>
@@ -317,12 +343,12 @@ const SlideTwo: React.FC = memo(() => (
     >
       <Animated.View entering={FadeInDown.duration(600)}>
         <Text style={styles.headline} accessibilityRole="header">
-          <Text style={styles.headlinePrimary}>Your Journey,{'\n'}</Text>
-          <Text style={styles.headlineAccent}>Our Responsibility</Text>
+          <Text style={styles.headlinePrimary}>हर सफर है </Text>
+          <Text style={styles.headlineAccent}>खास ❤️</Text>
         </Text>
         <Text style={styles.description}>
-          Experience safe, reliable and comfortable bus rental services across
-          India.
+          Experience safe, reliable and comfortable vehicle rental services
+          across India.
         </Text>
       </Animated.View>
 
@@ -545,7 +571,7 @@ const styles = StyleSheet.create({
   slideTwoScroll: { paddingTop: Spacing.sm, paddingBottom: Spacing.lg },
   headline: { ...Typography.h3, textAlign: 'center' },
   headlinePrimary: { color: Colors.primary, fontWeight: '700' },
-  headlineAccent: { color: Colors.accent, fontWeight: '700' },
+  headlineAccent: { color: Colors.secondary, fontWeight: '700' },
   description: {
     ...Typography.body,
     color: Colors.textSecondary,
@@ -581,11 +607,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
+    overflow: 'hidden',
   },
   cardTitle: {
     ...Typography.label,
     color: Colors.textPrimary,
     fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 19,
     textAlign: 'center',
   },
   cardDescription: {
@@ -593,7 +622,8 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginTop: Spacing.xxs,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
   },
 
   footer: {
@@ -618,6 +648,10 @@ const styles = StyleSheet.create({
     ...Shadows.md,
   },
   ctaPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-  ctaText: { ...Typography.button, color: Colors.buttonPrimaryText, fontSize: 20 },
+  ctaText: {
+    ...Typography.button,
+    color: Colors.buttonPrimaryText,
+    fontSize: 20,
+  },
   ctaSpacer: { height: Dimensions.buttonHeightLarge },
 });

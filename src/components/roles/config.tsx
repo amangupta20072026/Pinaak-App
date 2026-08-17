@@ -51,9 +51,22 @@ export const UserIcon: React.FC<IconProps> = ({ color, size }) => (
 
 export const BusIcon: React.FC<IconProps> = ({ color, size }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Rect x={4} y={4} width={16} height={13} rx={2.5} stroke={color} strokeWidth={1.8} />
+    <Rect
+      x={4}
+      y={4}
+      width={16}
+      height={13}
+      rx={2.5}
+      stroke={color}
+      strokeWidth={1.8}
+    />
     <Path d="M4 11h16" stroke={color} strokeWidth={1.8} />
-    <Path d="M8 17v2M16 17v2" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path
+      d="M8 17v2M16 17v2"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+    />
     <Circle cx={8.5} cy={14} r={1} fill={color} />
     <Circle cx={15.5} cy={14} r={1} fill={color} />
   </Svg>
@@ -110,7 +123,7 @@ export const ROLES: RoleConfig[] = [
     id: 'customer',
     pickerTitle: 'I am a Customer',
     shortLabel: 'Customer',
-    description: 'Book buses & cars for trips',
+    description: 'Book Vehicles & Packages',
     Icon: UserIcon,
     tint: 'primary',
   },
@@ -118,7 +131,7 @@ export const ROLES: RoleConfig[] = [
     id: 'vendor',
     pickerTitle: 'I am a Vendor',
     shortLabel: 'Vendor',
-    description: 'List your fleet & receive bookings',
+    description: 'List your Fleet & receive Bookings',
     Icon: BusIcon,
     tint: 'secondary',
   },
@@ -126,7 +139,7 @@ export const ROLES: RoleConfig[] = [
     id: 'driver',
     pickerTitle: 'I am a Driver',
     shortLabel: 'Driver',
-    description: 'Drive assigned trips & earn',
+    description: 'Drive assigned Trips',
     Icon: SteeringIcon,
     tint: 'info',
   },
@@ -134,19 +147,16 @@ export const ROLES: RoleConfig[] = [
     id: 'uc',
     pickerTitle: 'Urban Cruise Admin',
     shortLabel: 'Urban Cruise Admin',
-    description: 'Manage operations, customers & bookings',
+    description: 'Manage Sales & Operations',
     Icon: BadgeIcon,
     tint: 'accent',
   },
 ];
 
-export const ROLE_MAP: Record<UserRole, RoleConfig> = ROLES.reduce(
-  (acc, r) => {
-    acc[r.id] = r;
-    return acc;
-  },
-  {} as Record<UserRole, RoleConfig>,
-);
+export const ROLE_MAP: Record<UserRole, RoleConfig> = ROLES.reduce((acc, r) => {
+  acc[r.id] = r;
+  return acc;
+}, {} as Record<UserRole, RoleConfig>);
 
 export const TINT_COLOR: Record<RoleTint, string> = {
   primary: Colors.primary,

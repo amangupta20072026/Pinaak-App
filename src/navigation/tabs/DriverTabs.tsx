@@ -1,5 +1,14 @@
 // src/navigation/tabs/DriverTabs.tsx
 
+/**
+ * ==================================================================
+ * DriverTabs — Tab navigator for the Driver role
+ * ==================================================================
+ * See UcTabs.tsx for the one-way-data-flow contract governing tab
+ * taps and the More sheet. Same rules apply here.
+ * ==================================================================
+ */
+
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   createBottomTabNavigator,
@@ -13,6 +22,7 @@ import {
 } from '../../components/navigation/CustomTabBar';
 import {
   MoreSheet,
+  SheetDismissOnRouteChange,
   type MoreSheetRef,
 } from '../../components/navigation/MoreSheet';
 
@@ -29,16 +39,32 @@ const DriverTabs: React.FC = () => {
 
   const renderTabBar = useCallback(
     (props: BottomTabBarProps) => (
-      <CustomTabBar
-        {...props}
-        role="driver"
-        overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
-      />
+      <>
+        <SheetDismissOnRouteChange
+          tabIndex={props.state.index}
+          sheetRef={moreSheetRef}
+        />
+        <CustomTabBar
+          {...props}
+          role="driver"
+          overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
+        />
+      </>
     ),
     [isMoreSheetOpen],
   );
 
   const screenOptions = useMemo(() => ({ headerShown: false }), []);
+
+  const openMoreListeners = useMemo(
+    () => ({
+      tabPress: (e: { preventDefault: () => void }) => {
+        e.preventDefault();
+        moreSheetRef.current?.present();
+      },
+    }),
+    [],
+  );
 
   return (
     <>
@@ -50,12 +76,7 @@ const DriverTabs: React.FC = () => {
         <Tab.Screen
           name="More"
           component={PlaceholderScreen}
-          listeners={{
-            tabPress: e => {
-              e.preventDefault();
-              moreSheetRef.current?.present();
-            },
-          }}
+          listeners={openMoreListeners}
         />
       </Tab.Navigator>
 

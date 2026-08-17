@@ -1,5 +1,6 @@
 export { default as MoreSheet } from './MoreSheet';
 export type { MoreSheetRef } from './MoreSheet';
+export { SheetDismissOnRouteChange } from './SheetDismissOnRouteChange';
 export {
   getMoreMenu,
   groupMoreMenu,
