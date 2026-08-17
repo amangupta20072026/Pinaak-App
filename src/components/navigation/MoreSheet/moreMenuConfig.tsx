@@ -6,18 +6,23 @@
  * each role. Consumed by MoreSheet.tsx.
  *
  * DESIGN RULE:
- *   This file holds ONLY data — labels, icons, colors, and a string
- *   `actionId`. It NEVER imports navigation, redux, or side-effects.
- *   Behavior lives in `useMoreActions.ts`, which maps actionId → real
- *   action. This keeps config editable by anyone (product, design)
- *   without pulling in behavior concerns.
+ *   This file holds ONLY data — labels, icons, colors, group tags,
+ *   and a string `actionId`. It NEVER imports navigation, redux, or
+ *   side-effects. Behavior lives in `useMoreActions.ts`, which maps
+ *   actionId → real action. This keeps config editable by anyone
+ *   (product, design) without pulling in behavior concerns.
+ *
+ * GROUPING:
+ *   Each item belongs to one of three sections rendered as visually
+ *   separated blocks in the sheet:
+ *     - 'account'   → identity / preferences (Profile, Notifications, Settings)
+ *     - 'business'  → role-specific work items (Fleet, Customers, Finance…)
+ *     - 'support'   → Support, Logout — always last, Logout in red.
  *
  * To add a new item:
  *   1. Add its id to the MoreActionId union below.
- *   2. Add a row to the appropriate per-role array.
+ *   2. Add a row to the appropriate per-role array, with `group`.
  *   3. Handle the id in useMoreActions.ts.
- *
- * Same shape/spirit as ../CustomTabBar/tabConfig.ts.
  * ------------------------------------------------------------------
  */
 
@@ -56,33 +61,26 @@ import { Colors } from '@theme';
 
 export type MoreRole = 'customer' | 'vendor' | 'driver' | 'uc';
 
-/**
- * Every possible action a More item can trigger.
- * Handled centrally in useMoreActions.ts.
- */
+export type MoreGroup = 'account' | 'business' | 'support';
+
 export type MoreActionId =
-  // Shared across roles
   | 'profile'
   | 'notifications'
   | 'support'
   | 'settings'
   | 'logout'
-  // Customer
   | 'customer.invoices'
   | 'customer.payment'
   | 'customer.addresses'
-  // Vendor
   | 'vendor.fleet'
   | 'vendor.drivers'
   | 'vendor.payouts'
   | 'vendor.maintenance'
   | 'vendor.reports'
-  // Driver
   | 'driver.routes'
   | 'driver.fuelLog'
   | 'driver.incidents'
   | 'driver.rewards'
-  // UC
   | 'uc.customers'
   | 'uc.vendors'
   | 'uc.staff'
@@ -94,14 +92,13 @@ export type MoreItem = {
   key: string;
   label: string;
   Icon: ComponentType<LucideProps>;
-  /** Accent color applied to the icon. */
   color: string;
-  /** Which action to run when tapped — resolved in useMoreActions.ts. */
   actionId: MoreActionId;
+  group: MoreGroup;
 };
 
 /* -----------------------------------------------------------------
- * Small semantic palette (reused from tabConfig.ts)
+ * Palette
  * ----------------------------------------------------------------- */
 
 const Palette = {
@@ -116,7 +113,19 @@ const Palette = {
 } as const;
 
 /* -----------------------------------------------------------------
- * Per-role menus (data only)
+ * Section metadata — order in which sections render in the sheet.
+ * ----------------------------------------------------------------- */
+
+export const MORE_GROUP_ORDER: MoreGroup[] = ['account', 'business', 'support'];
+
+export const MORE_GROUP_LABEL: Record<MoreGroup, string> = {
+  account: 'Account',
+  business: 'Business',
+  support: 'Support',
+};
+
+/* -----------------------------------------------------------------
+ * Per-role menus
  * ----------------------------------------------------------------- */
 
 const customerMore: MoreItem[] = [
@@ -126,6 +135,7 @@ const customerMore: MoreItem[] = [
     Icon: User,
     color: Palette.pink,
     actionId: 'profile',
+    group: 'account',
   },
   {
     key: 'notifications',
@@ -133,34 +143,7 @@ const customerMore: MoreItem[] = [
     Icon: Bell,
     color: Palette.amber,
     actionId: 'notifications',
-  },
-  {
-    key: 'invoices',
-    label: 'Invoices',
-    Icon: FileText,
-    color: Palette.blue,
-    actionId: 'customer.invoices',
-  },
-  {
-    key: 'payment',
-    label: 'Payment',
-    Icon: CreditCard,
-    color: Palette.purple,
-    actionId: 'customer.payment',
-  },
-  {
-    key: 'addresses',
-    label: 'Addresses',
-    Icon: MapPin,
-    color: Palette.green,
-    actionId: 'customer.addresses',
-  },
-  {
-    key: 'support',
-    label: 'Support',
-    Icon: LifeBuoy,
-    color: Palette.orange,
-    actionId: 'support',
+    group: 'account',
   },
   {
     key: 'settings',
@@ -168,6 +151,41 @@ const customerMore: MoreItem[] = [
     Icon: Settings,
     color: Palette.slate,
     actionId: 'settings',
+    group: 'account',
+  },
+
+  {
+    key: 'invoices',
+    label: 'Invoices',
+    Icon: FileText,
+    color: Palette.blue,
+    actionId: 'customer.invoices',
+    group: 'business',
+  },
+  {
+    key: 'payment',
+    label: 'Payment',
+    Icon: CreditCard,
+    color: Palette.purple,
+    actionId: 'customer.payment',
+    group: 'business',
+  },
+  {
+    key: 'addresses',
+    label: 'Addresses',
+    Icon: MapPin,
+    color: Palette.green,
+    actionId: 'customer.addresses',
+    group: 'business',
+  },
+
+  {
+    key: 'support',
+    label: 'Support',
+    Icon: LifeBuoy,
+    color: Palette.orange,
+    actionId: 'support',
+    group: 'support',
   },
   {
     key: 'logout',
@@ -175,6 +193,7 @@ const customerMore: MoreItem[] = [
     Icon: LogOut,
     color: Palette.red,
     actionId: 'logout',
+    group: 'support',
   },
 ];
 
@@ -185,6 +204,7 @@ const vendorMore: MoreItem[] = [
     Icon: User,
     color: Palette.pink,
     actionId: 'profile',
+    group: 'account',
   },
   {
     key: 'notifications',
@@ -192,48 +212,7 @@ const vendorMore: MoreItem[] = [
     Icon: Bell,
     color: Palette.amber,
     actionId: 'notifications',
-  },
-  {
-    key: 'fleet',
-    label: 'Fleet',
-    Icon: Truck,
-    color: Palette.orange,
-    actionId: 'vendor.fleet',
-  },
-  {
-    key: 'drivers',
-    label: 'Drivers',
-    Icon: UserCheck,
-    color: Palette.blue,
-    actionId: 'vendor.drivers',
-  },
-  {
-    key: 'payouts',
-    label: 'Payouts',
-    Icon: BadgeIndianRupee,
-    color: Palette.green,
-    actionId: 'vendor.payouts',
-  },
-  {
-    key: 'maintenance',
-    label: 'Maintenance',
-    Icon: Wrench,
-    color: Palette.purple,
-    actionId: 'vendor.maintenance',
-  },
-  {
-    key: 'reports',
-    label: 'Reports',
-    Icon: ClipboardList,
-    color: Palette.slate,
-    actionId: 'vendor.reports',
-  },
-  {
-    key: 'support',
-    label: 'Support',
-    Icon: LifeBuoy,
-    color: Palette.orange,
-    actionId: 'support',
+    group: 'account',
   },
   {
     key: 'settings',
@@ -241,6 +220,57 @@ const vendorMore: MoreItem[] = [
     Icon: Settings,
     color: Palette.slate,
     actionId: 'settings',
+    group: 'account',
+  },
+
+  {
+    key: 'fleet',
+    label: 'Fleet',
+    Icon: Truck,
+    color: Palette.orange,
+    actionId: 'vendor.fleet',
+    group: 'business',
+  },
+  {
+    key: 'drivers',
+    label: 'Drivers',
+    Icon: UserCheck,
+    color: Palette.blue,
+    actionId: 'vendor.drivers',
+    group: 'business',
+  },
+  {
+    key: 'payouts',
+    label: 'Payouts',
+    Icon: BadgeIndianRupee,
+    color: Palette.green,
+    actionId: 'vendor.payouts',
+    group: 'business',
+  },
+  {
+    key: 'maintenance',
+    label: 'Maintenance',
+    Icon: Wrench,
+    color: Palette.purple,
+    actionId: 'vendor.maintenance',
+    group: 'business',
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    Icon: ClipboardList,
+    color: Palette.slate,
+    actionId: 'vendor.reports',
+    group: 'business',
+  },
+
+  {
+    key: 'support',
+    label: 'Support',
+    Icon: LifeBuoy,
+    color: Palette.orange,
+    actionId: 'support',
+    group: 'support',
   },
   {
     key: 'logout',
@@ -248,6 +278,7 @@ const vendorMore: MoreItem[] = [
     Icon: LogOut,
     color: Palette.red,
     actionId: 'logout',
+    group: 'support',
   },
 ];
 
@@ -258,6 +289,7 @@ const driverMore: MoreItem[] = [
     Icon: User,
     color: Palette.pink,
     actionId: 'profile',
+    group: 'account',
   },
   {
     key: 'notifications',
@@ -265,13 +297,24 @@ const driverMore: MoreItem[] = [
     Icon: Bell,
     color: Palette.amber,
     actionId: 'notifications',
+    group: 'account',
   },
+  {
+    key: 'settings',
+    label: 'Settings',
+    Icon: Settings,
+    color: Palette.slate,
+    actionId: 'settings',
+    group: 'account',
+  },
+
   {
     key: 'routes',
     label: 'My Routes',
     Icon: Route,
     color: Palette.blue,
     actionId: 'driver.routes',
+    group: 'business',
   },
   {
     key: 'fuelLog',
@@ -279,6 +322,7 @@ const driverMore: MoreItem[] = [
     Icon: Fuel,
     color: Palette.orange,
     actionId: 'driver.fuelLog',
+    group: 'business',
   },
   {
     key: 'incidents',
@@ -286,6 +330,7 @@ const driverMore: MoreItem[] = [
     Icon: ShieldAlert,
     color: Palette.red,
     actionId: 'driver.incidents',
+    group: 'business',
   },
   {
     key: 'rewards',
@@ -293,20 +338,16 @@ const driverMore: MoreItem[] = [
     Icon: Award,
     color: Palette.green,
     actionId: 'driver.rewards',
+    group: 'business',
   },
+
   {
     key: 'support',
     label: 'Support',
     Icon: LifeBuoy,
     color: Palette.purple,
     actionId: 'support',
-  },
-  {
-    key: 'settings',
-    label: 'Settings',
-    Icon: Settings,
-    color: Palette.slate,
-    actionId: 'settings',
+    group: 'support',
   },
   {
     key: 'logout',
@@ -314,23 +355,18 @@ const driverMore: MoreItem[] = [
     Icon: LogOut,
     color: Palette.red,
     actionId: 'logout',
+    group: 'support',
   },
 ];
 
 const ucMore: MoreItem[] = [
-  {
-    key: 'customers',
-    label: 'Customers',
-    Icon: Users,
-    color: Palette.blue,
-    actionId: 'uc.customers',
-  },
   {
     key: 'profile',
     label: 'Profile',
     Icon: User,
     color: Palette.pink,
     actionId: 'profile',
+    group: 'account',
   },
   {
     key: 'notifications',
@@ -338,48 +374,7 @@ const ucMore: MoreItem[] = [
     Icon: Bell,
     color: Palette.amber,
     actionId: 'notifications',
-  },
-  {
-    key: 'vendors',
-    label: 'Vendors',
-    Icon: Building2,
-    color: Palette.orange,
-    actionId: 'uc.vendors',
-  },
-  {
-    key: 'staff',
-    label: 'Staff',
-    Icon: Users,
-    color: Palette.blue,
-    actionId: 'uc.staff',
-  },
-  {
-    key: 'finance',
-    label: 'Finance',
-    Icon: Wallet,
-    color: Palette.green,
-    actionId: 'uc.finance',
-  },
-  {
-    key: 'reports',
-    label: 'Reports',
-    Icon: BarChart3,
-    color: Palette.purple,
-    actionId: 'uc.reports',
-  },
-  {
-    key: 'inventory',
-    label: 'Inventory',
-    Icon: Boxes,
-    color: Palette.slate,
-    actionId: 'uc.inventory',
-  },
-  {
-    key: 'support',
-    label: 'Support',
-    Icon: LifeBuoy,
-    color: Palette.red,
-    actionId: 'support',
+    group: 'account',
   },
   {
     key: 'settings',
@@ -387,6 +382,65 @@ const ucMore: MoreItem[] = [
     Icon: Settings,
     color: Palette.slate,
     actionId: 'settings',
+    group: 'account',
+  },
+
+  {
+    key: 'customers',
+    label: 'Customers',
+    Icon: Users,
+    color: Palette.blue,
+    actionId: 'uc.customers',
+    group: 'business',
+  },
+  {
+    key: 'vendors',
+    label: 'Vendors',
+    Icon: Building2,
+    color: Palette.orange,
+    actionId: 'uc.vendors',
+    group: 'business',
+  },
+  {
+    key: 'staff',
+    label: 'Staff',
+    Icon: UserCheck,
+    color: Palette.blue,
+    actionId: 'uc.staff',
+    group: 'business',
+  },
+  {
+    key: 'finance',
+    label: 'Finance',
+    Icon: Wallet,
+    color: Palette.green,
+    actionId: 'uc.finance',
+    group: 'business',
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    Icon: BarChart3,
+    color: Palette.purple,
+    actionId: 'uc.reports',
+    group: 'business',
+  },
+  {
+    key: 'inventory',
+    label: 'Inventory',
+    Icon: Boxes,
+    color: Palette.slate,
+    actionId: 'uc.inventory',
+    group: 'business',
+  },
+
+  {
+    key: 'support',
+    label: 'Support',
+    Icon: LifeBuoy,
+    color: Palette.red,
+    actionId: 'support',
+    group: 'support',
   },
   {
     key: 'logout',
@@ -394,6 +448,7 @@ const ucMore: MoreItem[] = [
     Icon: LogOut,
     color: Palette.red,
     actionId: 'logout',
+    group: 'support',
   },
 ];
 
@@ -405,3 +460,16 @@ const MORE_MAP: Record<MoreRole, MoreItem[]> = {
 };
 
 export const getMoreMenu = (role: MoreRole): MoreItem[] => MORE_MAP[role];
+
+/** Group an ordered menu by section, preserving item order within each section. */
+export function groupMoreMenu(
+  items: MoreItem[],
+): Record<MoreGroup, MoreItem[]> {
+  const buckets: Record<MoreGroup, MoreItem[]> = {
+    account: [],
+    business: [],
+    support: [],
+  };
+  for (const item of items) buckets[item.group].push(item);
+  return buckets;
+}

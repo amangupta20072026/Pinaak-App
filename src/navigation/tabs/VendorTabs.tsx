@@ -1,13 +1,16 @@
 // src/navigation/tabs/VendorTabs.tsx
 
-import React, { useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   createBottomTabNavigator,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import type { VendorTabParamList } from '../types';
 import VendorHomeScreen from '../../features/vendor/VendorHomeScreen';
-import { CustomTabBar } from '../../components/navigation/CustomTabBar';
+import {
+  CustomTabBar,
+  useTabBarFootprint,
+} from '../../components/navigation/CustomTabBar';
 import {
   MoreSheet,
   type MoreSheetRef,
@@ -17,19 +20,29 @@ const Tab = createBottomTabNavigator<VendorTabParamList>();
 
 const PlaceholderScreen: React.FC = () => null;
 
-const renderVendorTabBar = (props: BottomTabBarProps) => (
-  <CustomTabBar {...props} role="vendor" />
-);
+const MORE_TAB_INDEX = 4;
 
 const VendorTabs: React.FC = () => {
   const moreSheetRef = useRef<MoreSheetRef>(null);
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+  const bottomInset = useTabBarFootprint();
+
+  const renderTabBar = useCallback(
+    (props: BottomTabBarProps) => (
+      <CustomTabBar
+        {...props}
+        role="vendor"
+        overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
+      />
+    ),
+    [isMoreSheetOpen],
+  );
+
+  const screenOptions = useMemo(() => ({ headerShown: false }), []);
 
   return (
     <>
-      <Tab.Navigator
-        screenOptions={{ headerShown: false }}
-        tabBar={renderVendorTabBar}
-      >
+      <Tab.Navigator screenOptions={screenOptions} tabBar={renderTabBar}>
         <Tab.Screen name="Dashboard" component={VendorHomeScreen} />
         <Tab.Screen name="Bookings" component={PlaceholderScreen} />
         <Tab.Screen name="Fleet" component={PlaceholderScreen} />
@@ -46,7 +59,12 @@ const VendorTabs: React.FC = () => {
         />
       </Tab.Navigator>
 
-      <MoreSheet ref={moreSheetRef} role="vendor" />
+      <MoreSheet
+        ref={moreSheetRef}
+        role="vendor"
+        bottomInset={bottomInset}
+        onOpenChange={setIsMoreSheetOpen}
+      />
     </>
   );
 };

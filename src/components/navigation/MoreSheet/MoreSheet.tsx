@@ -1,28 +1,35 @@
+/* eslint-disable react-native/no-inline-styles */
 /**
  * ------------------------------------------------------------------
  * MoreSheet — Per-role "More" bottom-sheet
  * ------------------------------------------------------------------
  * Opened when the user taps the "More" tab in any of the 4 role tab
  * bars. The tab's `tabPress` listener calls preventDefault() and
- * imperatively calls `ref.current?.present()` — CustomTabBar already
- * respects `event.defaultPrevented`, so no navigation happens.
+ * imperatively calls `ref.current?.present()`.
  *
- * Layout mirrors the reference screenshot:
- *   - 3-column grid of circular icon buttons with labels underneath
- *   - Close (×) button at the bottom that dismisses the sheet
+ * LAYOUT (2026 pattern):
+ *   - Half-sheet snap points (60% / 85%) so the tab bar stays visible
+ *     below the sheet and the user always has visual anchor.
+ *   - `bottomInset` = tab bar footprint, so the sheet stops above it.
+ *   - Backdrop also inset so the dim overlay never covers the tab bar.
+ *     Tab bar stays fully interactive — tapping another tab dismisses
+ *     the sheet and switches, iOS/Instagram style.
+ *   - Grouped sections: Account · Business · Support. Section headers
+ *     are 11px uppercase muted labels.
+ *   - Icons render inside colored tinted circles (10% alpha of the
+ *     icon's accent color). Modern Material 3 / iOS 17 look.
+ *   - Drag handle is the only close affordance — no × button.
  *
- * BEHAVIOR / ANIMATION:
- *   On item press we don't fire the action immediately — that would
- *   race the sheet's slide-out animation against whatever navigation
- *   the action triggers (visibly janky on mid-range Android).
- *   Instead we:
- *     1. Store the pending action id in a ref.
- *     2. Dismiss the sheet.
- *     3. Run the action from onAnimate(-> closed) / onDismiss,
- *        i.e. after the sheet is fully offscreen.
+ * PARENT CALLBACKS:
+ *   `onOpenChange(open)` fires when the sheet transitions between
+ *   presented and dismissed. Parents use this to switch the tab bar's
+ *   `overrideActiveIndex` to the More tab while the sheet is open,
+ *   so the badge visually slides to More.
  *
- * Provider is already wired at the app root (BottomSheetModalProvider
- * in App.tsx), same pattern as CustomerContactSheet.
+ * ACTION DISPATCH:
+ *   On item tap we stash the actionId and dismiss the sheet. The real
+ *   navigation / logout side-effect fires from onDismiss, after the
+ *   sheet is fully offscreen — avoids animation conflicts.
  * ------------------------------------------------------------------
  */
 
@@ -33,27 +40,23 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
-  BottomSheetView,
+  BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import type {
   BottomSheetBackdropProps,
   BottomSheetModal as BottomSheetModalType,
 } from '@gorhom/bottom-sheet';
-import { X } from 'lucide-react-native';
 
-import { Colors, Radius, Shadows, Spacing, Typography } from '@theme';
+import { Colors, Shadows, Spacing, Typography } from '@theme';
 import {
+  MORE_GROUP_LABEL,
+  MORE_GROUP_ORDER,
   getMoreMenu,
+  groupMoreMenu,
   type MoreActionId,
   type MoreItem,
   type MoreRole,
@@ -61,7 +64,7 @@ import {
 import { useMoreActions } from './useMoreActions';
 
 /* -----------------------------------------------------------------
- * Public ref API — mirrors CustomerContactSheet
+ * Public ref API
  * ----------------------------------------------------------------- */
 
 export type MoreSheetRef = {
@@ -71,166 +74,233 @@ export type MoreSheetRef = {
 
 type Props = {
   role: MoreRole;
+  /**
+   * Fires whenever the sheet transitions between presented and
+   * dismissed. Parents wire this into their tab bar's
+   * `overrideActiveIndex` to slide the badge onto the More tab while
+   * the sheet is open.
+   */
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Space below the sheet (typically the tab bar's footprint) so the
+   * sheet rests ON TOP of the tab bar instead of covering it.
+   * Backdrop respects the same inset — tab bar stays undimmed.
+   */
+  bottomInset?: number;
+};
+
+/* -----------------------------------------------------------------
+ * Colored tint utility — used for the soft icon backgrounds.
+ * ----------------------------------------------------------------- */
+
+const withAlpha = (hex: string, alpha: number): string => {
+  const clamped = Math.round(Math.max(0, Math.min(1, alpha)) * 255);
+  const suffix = clamped.toString(16).padStart(2, '0');
+  return `${hex}${suffix}`;
 };
 
 /* -----------------------------------------------------------------
  * Component
  * ----------------------------------------------------------------- */
 
-const MoreSheet = forwardRef<MoreSheetRef, Props>(({ role }, ref) => {
-  const sheetRef = useRef<BottomSheetModalType>(null);
-  const items = useMemo(() => getMoreMenu(role), [role]);
-  const { run } = useMoreActions();
-  const { height: screenHeight } = useWindowDimensions();
+const MoreSheet = forwardRef<MoreSheetRef, Props>(
+  ({ role, onOpenChange, bottomInset = 0 }, ref) => {
+    const sheetRef = useRef<BottomSheetModalType>(null);
+    const items = useMemo(() => getMoreMenu(role), [role]);
+    const grouped = useMemo(() => groupMoreMenu(items), [items]);
+    const { run } = useMoreActions();
 
-  // Cap sheet height at 85% of the screen so the sheet never covers
-  // the full screen even if the menu grows large in the future.
-  // Recommended by gorhom's Dynamic Sizing docs.
-  const maxDynamicContentSize = screenHeight * 0.85;
+    const snapPoints = useMemo(() => ['60%', '85%'], []);
 
-  // Holds the action to run AFTER the sheet has finished closing.
-  // A ref (not state) because we don't want to re-render on tap;
-  // we just want the value read once in onDismiss.
-  const pendingActionRef = useRef<MoreActionId | null>(null);
+    const pendingActionRef = useRef<MoreActionId | null>(null);
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      present: () => sheetRef.current?.present(),
-      dismiss: () => sheetRef.current?.dismiss(),
-    }),
-    [],
-  );
+    useImperativeHandle(
+      ref,
+      () => ({
+        present: () => sheetRef.current?.present(),
+        dismiss: () => sheetRef.current?.dismiss(),
+      }),
+      [],
+    );
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.35}
-      />
-    ),
-    [],
-  );
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.45}
+          pressBehavior="close"
+        />
+      ),
+      [],
+    );
 
-  const handleItemPress = useCallback((item: MoreItem) => {
-    // Stage the action; run it after the sheet finishes closing.
-    pendingActionRef.current = item.actionId;
-    sheetRef.current?.dismiss();
-  }, []);
+    const handleItemPress = useCallback((item: MoreItem) => {
+      pendingActionRef.current = item.actionId;
+      sheetRef.current?.dismiss();
+    }, []);
 
-  const handleClose = useCallback(() => {
-    // Explicit close button — no pending action, just dismiss.
-    pendingActionRef.current = null;
-    sheetRef.current?.dismiss();
-  }, []);
+    const handleChange = useCallback(
+      (index: number) => {
+        onOpenChange?.(index >= 0);
+      },
+      [onOpenChange],
+    );
 
-  const handleDismiss = useCallback(() => {
-    // Sheet is fully offscreen now — safe to trigger navigation
-    // or any other side-effect without animation conflict.
-    const action = pendingActionRef.current;
-    pendingActionRef.current = null;
-    if (action) run(action);
-  }, [run]);
+    const handleDismiss = useCallback(() => {
+      onOpenChange?.(false);
+      const action = pendingActionRef.current;
+      pendingActionRef.current = null;
+      if (action) run(action);
+    }, [onOpenChange, run]);
 
-  return (
-    <BottomSheetModal
-      ref={sheetRef}
-      enableDynamicSizing
-      maxDynamicContentSize={maxDynamicContentSize}
-      backdropComponent={renderBackdrop}
-      handleIndicatorStyle={styles.handle}
-      backgroundStyle={styles.background}
-      onDismiss={handleDismiss}
-    >
-      <BottomSheetView style={styles.container}>
-        <Text style={styles.title}>More</Text>
+    return (
+      <BottomSheetModal
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        index={0}
+        bottomInset={bottomInset}
+        detached={bottomInset > 0}
+        style={bottomInset > 0 ? styles.detachedSheet : undefined}
+        backdropComponent={renderBackdrop}
+        handleIndicatorStyle={styles.handle}
+        backgroundStyle={styles.background}
+        onChange={handleChange}
+        onDismiss={handleDismiss}
+        enablePanDownToClose
+      >
+        <BottomSheetScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.title}>More</Text>
 
-        <View style={styles.grid}>
-          {items.map(item => {
-            const { Icon } = item;
+          {MORE_GROUP_ORDER.map(group => {
+            const groupItems = grouped[group];
+            if (groupItems.length === 0) return null;
             return (
-              <Pressable
-                key={item.key}
-                onPress={() => handleItemPress(item)}
-                style={({ pressed }) => [
-                  styles.cell,
-                  pressed && styles.cellPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={item.label}
-              >
-                <View style={styles.iconCircle}>
-                  <Icon color={item.color} size={26} strokeWidth={2} />
-                </View>
-                <Text numberOfLines={1} style={styles.label}>
-                  {item.label}
+              <View key={group} style={styles.section}>
+                <Text style={styles.sectionLabel}>
+                  {MORE_GROUP_LABEL[group].toUpperCase()}
                 </Text>
-              </Pressable>
+                <View style={styles.grid}>
+                  {groupItems.map(item => (
+                    <MenuCell
+                      key={item.key}
+                      item={item}
+                      onPress={handleItemPress}
+                    />
+                  ))}
+                </View>
+              </View>
             );
           })}
-        </View>
-
-        <View style={styles.closeRow}>
-          <Pressable
-            onPress={handleClose}
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed && styles.closeBtnPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Close More menu"
-          >
-            <X color={Colors.textPrimary} size={22} strokeWidth={2.2} />
-          </Pressable>
-        </View>
-      </BottomSheetView>
-    </BottomSheetModal>
-  );
-});
+        </BottomSheetScrollView>
+      </BottomSheetModal>
+    );
+  },
+);
 
 MoreSheet.displayName = 'MoreSheet';
 
 export default MoreSheet;
 
 /* -----------------------------------------------------------------
+ * Menu cell — colored tinted icon circle + label
+ * ----------------------------------------------------------------- */
+
+const MenuCell: React.FC<{
+  item: MoreItem;
+  onPress: (item: MoreItem) => void;
+}> = ({ item, onPress }) => {
+  const { Icon, label, color, group } = item;
+  const isLogout = item.actionId === 'logout';
+
+  return (
+    <Pressable
+      onPress={() => onPress(item)}
+      style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <View
+        style={[
+          styles.iconCircle,
+          { backgroundColor: withAlpha(color, 0.12) },
+        ]}
+      >
+        <Icon color={color} size={22} strokeWidth={2} />
+      </View>
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.label,
+          isLogout && { color: Colors.error, fontWeight: '600' },
+          group === 'support' && !isLogout && styles.labelSubtle,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+};
+
+/* -----------------------------------------------------------------
  * Styles
  * ----------------------------------------------------------------- */
 
-const CIRCLE_SIZE = 60;
+const CIRCLE_SIZE = 52;
 
 const styles = StyleSheet.create({
   background: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: Radius.xxl,
-    borderTopRightRadius: Radius.xxl,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+  },
+  detachedSheet: {
+    marginHorizontal: 8,
+    ...Shadows.lg,
   },
   handle: {
     backgroundColor: Colors.border,
     width: 44,
+    height: 5,
   },
-  container: {
+
+  scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
+    paddingTop: Spacing.xs,
     paddingBottom: Spacing.xxl,
   },
+
   title: {
-    ...Typography.h5,
+    ...Typography.h4,
     color: Colors.textPrimary,
+    fontWeight: '600',
     marginBottom: Spacing.lg,
   },
 
-  /* --- grid --- */
+  section: {
+    marginBottom: Spacing.xl,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textTertiary,
+    letterSpacing: 0.8,
+    marginBottom: Spacing.md,
+  },
+
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -Spacing.sm,
+    marginHorizontal: -Spacing.xs,
   },
   cell: {
     width: '33.333%',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.sm + 2,
     alignItems: 'center',
   },
   cellPressed: {
@@ -240,39 +310,18 @@ const styles = StyleSheet.create({
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
     borderRadius: CIRCLE_SIZE / 2,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
-    ...Shadows.xs,
   },
   label: {
     ...Typography.caption,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: Colors.textPrimary,
     fontWeight: '500',
     textAlign: 'center',
   },
-
-  /* --- close --- */
-  closeRow: {
-    marginTop: Spacing.lg,
-    alignItems: 'center',
-  },
-  closeBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.sm,
-  },
-  closeBtnPressed: {
-    opacity: 0.7,
+  labelSubtle: {
+    color: Colors.textSecondary,
   },
 });

@@ -63,6 +63,22 @@ const BADGE_BORDER_WIDTH = 1.5;
 const BADGE_OVERFLOW_TOP = 26;
 
 /**
+ * Total vertical footprint of the tab bar, safe-area bottom included.
+ * Parents use this when they present a bottom sheet (like MoreSheet)
+ * that must stop above the tab bar via `bottomInset`.
+ *
+ *   footprint = badge overflow + bar height + bottom margin + safeArea
+ *
+ * Wrapped in a hook so it stays in sync with orientation / safe-area
+ * changes.
+ */
+export function useTabBarFootprint(): number {
+  const insets = useSafeAreaInsets();
+  const safeBottom = Math.max(insets.bottom, 8);
+  return BADGE_OVERFLOW_TOP + BAR_HEIGHT + BAR_BOTTOM_MARGIN + safeBottom;
+}
+
+/**
  * Extra radius the notch has over the badge — this is what creates
  * the visible background "ring" gap in the reference image.
  *   larger → wider gap between circle and bar
@@ -93,34 +109,77 @@ function buildBarPath(
   radius: number,
 ) {
   'worklet';
-  const left = cx - NOTCH_RADIUS - NOTCH_SPREAD;
-  const right = cx + NOTCH_RADIUS + NOTCH_SPREAD;
+  // A "normal" scoop needs this much flat top on each side of cx to fit
+  // both the shoulder spread and the notch radius. When cx sits closer
+  // to either edge than this, the shoulder would collide with — or run
+  // past — the bar's rounded corner. In that case we swap the two-part
+  // shoulder-plus-scoop for a SINGLE smooth cubic that runs directly
+  // from the rounded corner into the notch bottom, so the edge tabs
+  // read as one continuous curve instead of a sticky, clipped shoulder.
+  const cornerZone = radius + NOTCH_RADIUS;
+  const isLeftEdge = cx < cornerZone;
+  const isRightEdge = cx > width - cornerZone;
 
-  return [
-    `M0,${radius}`,
-    `Q0,0 ${radius},0`,
-    `L${left},0`,
-    // left shoulder into the scoop
-    `C${left + NOTCH_SPREAD * 0.55},0 ${cx - NOTCH_RADIUS},${NOTCH_DEPTH} ${cx},${NOTCH_DEPTH}`,
-    // right shoulder out of the scoop
-    `C${cx + NOTCH_RADIUS},${NOTCH_DEPTH} ${right - NOTCH_SPREAD * 0.55},0 ${right},0`,
-    `L${width - radius},0`,
-    `Q${width},0 ${width},${radius}`,
-    `L${width},${height - radius}`,
-    `Q${width},${height} ${width - radius},${height}`,
-    `L${radius},${height}`,
-    `Q0,${height} 0,${height - radius}`,
-    'Z',
-  ].join(' ');
+  const leftSide = isLeftEdge
+    ? // Corner arc → straight into a single sweeping curve down to
+      // the notch bottom. Control-point x is proportional to cx so the
+      // curve stays smooth as cx shrinks toward 0.
+      `M0,${radius} C0,0 ${cx * 0.4},0 ${cx},${NOTCH_DEPTH}`
+    : (() => {
+        const left = cx - NOTCH_RADIUS - NOTCH_SPREAD;
+        return (
+          `M0,${radius} Q0,0 ${radius},0 L${left},0 ` +
+          `C${left + NOTCH_SPREAD * 0.55},0 ${
+            cx - NOTCH_RADIUS
+          },${NOTCH_DEPTH} ${cx},${NOTCH_DEPTH}`
+        );
+      })();
+
+  const rightSide = isRightEdge
+    ? // Mirror of the left-edge case — sweep from notch bottom directly
+      // into the right rounded corner.
+      `C${width - (width - cx) * 0.4},0 ${width},0 ${width},${radius}`
+    : (() => {
+        const right = cx + NOTCH_RADIUS + NOTCH_SPREAD;
+        return (
+          `C${cx + NOTCH_RADIUS},${NOTCH_DEPTH} ${
+            right - NOTCH_SPREAD * 0.55
+          },0 ${right},0 ` +
+          `L${width - radius},0 Q${width},0 ${width},${radius}`
+        );
+      })();
+
+  return (
+    `${leftSide} ${rightSide} ` +
+    `L${width},${height - radius} ` +
+    `Q${width},${height} ${width - radius},${height} ` +
+    `L${radius},${height} ` +
+    `Q0,${height} 0,${height - radius} Z`
+  );
 }
 
 /* -----------------------------------------------------------------
  * Component
  * ----------------------------------------------------------------- */
 
-type Props = BottomTabBarProps & { role: TabRoleName };
+type Props = BottomTabBarProps & {
+  role: TabRoleName;
+  /**
+   * Optional index to visually treat as active, overriding
+   * React Navigation's `state.index`. Used when the More sheet is
+   * open — the sheet's presence doesn't change navigation state, but
+   * the badge/notch should slide onto the More tab so the user has a
+   * visual anchor. Falls back to `state.index` when undefined.
+   */
+  overrideActiveIndex?: number;
+};
 
-const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
+const CustomTabBar: React.FC<Props> = ({
+  state,
+  navigation,
+  role,
+  overrideActiveIndex,
+}) => {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const config = getTabConfig(role);
@@ -128,9 +187,24 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
   const initialWidth = screenWidth - BAR_HORIZONTAL_MARGIN * 2;
   const [barWidth, setBarWidth] = useState(initialWidth);
 
-  const activeIndex = state.index;
+  const activeIndex =
+    typeof overrideActiveIndex === 'number' &&
+    overrideActiveIndex >= 0 &&
+    overrideActiveIndex < state.routes.length
+      ? overrideActiveIndex
+      : state.index;
   const tabWidth = barWidth / state.routes.length;
   const targetCx = tabWidth * activeIndex + tabWidth / 2;
+
+  // Edge tabs (first / last) use a smooth single-curve notch instead of
+  // the symmetric shoulder-scoop. Lifting the badge slightly on those
+  // tabs keeps the curve visually wrapping the badge without the notch
+  // depth clipping into it.
+  const cornerZone = BAR_RADIUS + NOTCH_RADIUS;
+  const isEdgeTab = targetCx < cornerZone || targetCx > barWidth - cornerZone;
+  const badgeTopOffset = isEdgeTab
+    ? BADGE_OVERFLOW_TOP - 4
+    : BADGE_OVERFLOW_TOP;
 
   const cx = useSharedValue(targetCx);
 
@@ -199,7 +273,7 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
             const meta = config[route.name];
             if (!meta) return <View key={route.key} style={styles.tab} />;
 
-            const focused = state.index === index;
+            const focused = activeIndex === index;
             const { Icon, label, color } = meta;
 
             const onPress = () => {
@@ -208,7 +282,12 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
                 target: route.key,
                 canPreventDefault: true,
               });
-              if (!focused && !event.defaultPrevented) {
+              // Compare against the REAL navigation state here — even
+              // when overrideActiveIndex marks this tab as visually
+              // focused (More sheet open), tapping it again should
+              // still fire the tabPress event so listeners like
+              // preventDefault + present() can run.
+              if (state.index !== index && !event.defaultPrevented) {
                 navigation.navigate(route.name, route.params as never);
               }
             };
@@ -261,10 +340,12 @@ const CustomTabBar: React.FC<Props> = ({ state, navigation, role }) => {
           })}
         </View>
 
-        {/* Floating badge — sits inside the notch's gap, slides horizontally */}
+        {/* Floating badge — sits inside the notch's gap, slides horizontally.
+            Edge tabs lift the badge a few px so the smooth single-curve
+            notch wraps around it cleanly instead of clipping its bottom. */}
         <Animated.View
           pointerEvents="none"
-          style={[styles.badge, badgeAnimStyle]}
+          style={[styles.badge, { top: -badgeTopOffset }, badgeAnimStyle]}
         >
           {ActiveIcon ? (
             <ActiveIcon color={activeColor} size={24} strokeWidth={2.2} />

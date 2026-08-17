@@ -1,12 +1,15 @@
 // src/navigation/tabs/UcTabs.tsx
 
-import React, { useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   createBottomTabNavigator,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import type { UcTabParamList } from '../types';
-import { CustomTabBar } from '../../components/navigation/CustomTabBar';
+import {
+  CustomTabBar,
+  useTabBarFootprint,
+} from '../../components/navigation/CustomTabBar';
 import {
   MoreSheet,
   type MoreSheetRef,
@@ -17,19 +20,29 @@ const Tab = createBottomTabNavigator<UcTabParamList>();
 
 const PlaceholderScreen: React.FC = () => null;
 
-const renderUcTabBar = (props: BottomTabBarProps) => (
-  <CustomTabBar {...props} role="uc" />
-);
+const MORE_TAB_INDEX = 4;
 
 const UcTabs: React.FC = () => {
   const moreSheetRef = useRef<MoreSheetRef>(null);
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+  const bottomInset = useTabBarFootprint();
+
+  const renderTabBar = useCallback(
+    (props: BottomTabBarProps) => (
+      <CustomTabBar
+        {...props}
+        role="uc"
+        overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
+      />
+    ),
+    [isMoreSheetOpen],
+  );
+
+  const screenOptions = useMemo(() => ({ headerShown: false }), []);
 
   return (
     <>
-      <Tab.Navigator
-        screenOptions={{ headerShown: false }}
-        tabBar={renderUcTabBar}
-      >
+      <Tab.Navigator screenOptions={screenOptions} tabBar={renderTabBar}>
         <Tab.Screen name="Dashboard" component={UcDashboardScreen} />
         <Tab.Screen name="Quotations" component={PlaceholderScreen} />
         <Tab.Screen name="Bookings" component={PlaceholderScreen} />
@@ -46,7 +59,12 @@ const UcTabs: React.FC = () => {
         />
       </Tab.Navigator>
 
-      <MoreSheet ref={moreSheetRef} role="uc" />
+      <MoreSheet
+        ref={moreSheetRef}
+        role="uc"
+        bottomInset={bottomInset}
+        onOpenChange={setIsMoreSheetOpen}
+      />
     </>
   );
 };

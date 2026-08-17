@@ -1,13 +1,16 @@
 // src/navigation/tabs/DriverTabs.tsx
 
-import React, { useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   createBottomTabNavigator,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import type { DriverTabParamList } from '../types';
 import DriverHomeScreen from '../../features/driver/DriverHomeScreen';
-import { CustomTabBar } from '../../components/navigation/CustomTabBar';
+import {
+  CustomTabBar,
+  useTabBarFootprint,
+} from '../../components/navigation/CustomTabBar';
 import {
   MoreSheet,
   type MoreSheetRef,
@@ -17,19 +20,29 @@ const Tab = createBottomTabNavigator<DriverTabParamList>();
 
 const PlaceholderScreen: React.FC = () => null;
 
-const renderDriverTabBar = (props: BottomTabBarProps) => (
-  <CustomTabBar {...props} role="driver" />
-);
+const MORE_TAB_INDEX = 4;
 
 const DriverTabs: React.FC = () => {
   const moreSheetRef = useRef<MoreSheetRef>(null);
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+  const bottomInset = useTabBarFootprint();
+
+  const renderTabBar = useCallback(
+    (props: BottomTabBarProps) => (
+      <CustomTabBar
+        {...props}
+        role="driver"
+        overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
+      />
+    ),
+    [isMoreSheetOpen],
+  );
+
+  const screenOptions = useMemo(() => ({ headerShown: false }), []);
 
   return (
     <>
-      <Tab.Navigator
-        screenOptions={{ headerShown: false }}
-        tabBar={renderDriverTabBar}
-      >
+      <Tab.Navigator screenOptions={screenOptions} tabBar={renderTabBar}>
         <Tab.Screen name="Home" component={DriverHomeScreen} />
         <Tab.Screen name="MyTrips" component={PlaceholderScreen} />
         <Tab.Screen name="Emergency" component={PlaceholderScreen} />
@@ -46,7 +59,12 @@ const DriverTabs: React.FC = () => {
         />
       </Tab.Navigator>
 
-      <MoreSheet ref={moreSheetRef} role="driver" />
+      <MoreSheet
+        ref={moreSheetRef}
+        role="driver"
+        bottomInset={bottomInset}
+        onOpenChange={setIsMoreSheetOpen}
+      />
     </>
   );
 };
