@@ -14,6 +14,10 @@
  *   SafeAreaProvider             — insets available to every screen
  *   KeyboardProvider             — keyboard-aware components anywhere
  *   BottomSheetModalProvider     — imperative bottom sheets anywhere
+ *   ErrorBoundary                — catches render / lifecycle errors
+ *                                   in the navigator tree so a bad
+ *                                   screen shows a fallback instead
+ *                                   of crashing the whole app.
  *   NavigationContainer          — with navigationRef for imperative nav
  *     RootNavigator              — conditional branches on Redux state
  *
@@ -41,6 +45,7 @@ import { queryClient } from '@app/queryClient';
 import { queryPersister, shouldPersistQuery } from '@app/queryPersister';
 import { navigationRef } from './src/navigation/NavigationService';
 import RootNavigator from './src/navigation/RootNavigator';
+import { ErrorBoundary } from '@components/ErrorBoundary';
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -70,9 +75,18 @@ const App: React.FC = () => {
             <KeyboardProvider>
               <BottomSheetModalProvider>
                 <StatusBar barStyle="dark-content" />
-                <NavigationContainer ref={navigationRef}>
-                  <RootNavigator />
-                </NavigationContainer>
+                {/*
+                  App-level ErrorBoundary sits ABOVE NavigationContainer
+                  so a crash in any screen shows a graceful fallback
+                  instead of a blank / crashed app, and BELOW the store
+                  providers so the fallback still has access to Redux
+                  and TanStack Query for any recovery actions.
+                */}
+                <ErrorBoundary name="RootBoundary">
+                  <NavigationContainer ref={navigationRef}>
+                    <RootNavigator />
+                  </NavigationContainer>
+                </ErrorBoundary>
               </BottomSheetModalProvider>
             </KeyboardProvider>
           </SafeAreaProvider>
