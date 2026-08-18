@@ -101,7 +101,11 @@ export function useMoreActions() {
         /* ---- Customer ---- */
         case 'customer.invoices':
         case 'customer.payment':
-        case 'customer.addresses':
+        case 'customer.referrals':
+        case 'customer.feedback':
+          // TODO: point at dedicated screens once they exist. Referral
+          // & Rewards and Feedback are Engagement-section entries in
+          // the customer's More sheet.
           noop();
           return;
 

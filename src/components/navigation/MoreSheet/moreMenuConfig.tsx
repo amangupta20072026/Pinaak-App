@@ -34,7 +34,7 @@ import {
   User,
   FileText,
   CreditCard,
-  MapPin,
+  Gift,
   ClipboardList,
   Truck,
   UserCheck,
@@ -67,6 +67,7 @@ export type MoreGroup =
   | 'business'
   | 'operations'
   | 'insights'
+  | 'engagement'
   | 'support';
 
 export type MoreActionId =
@@ -78,7 +79,8 @@ export type MoreActionId =
   | 'logout'
   | 'customer.invoices'
   | 'customer.payment'
-  | 'customer.addresses'
+  | 'customer.referrals'
+  | 'customer.feedback'
   | 'vendor.fleet'
   | 'vendor.drivers'
   | 'vendor.payouts'
@@ -128,6 +130,7 @@ export const MORE_GROUP_ORDER: MoreGroup[] = [
   'business',
   'operations',
   'insights',
+  'engagement',
   'support',
 ];
 
@@ -136,6 +139,7 @@ export const MORE_GROUP_LABEL: Record<MoreGroup, string> = {
   business: 'Business',
   operations: 'Operations',
   insights: 'Insights',
+  engagement: 'Engagement',
   support: 'Support',
 };
 
@@ -185,13 +189,22 @@ const customerMore: MoreItem[] = [
     actionId: 'customer.payment',
     group: 'business',
   },
+
   {
-    key: 'addresses',
-    label: 'Addresses',
-    Icon: MapPin,
-    color: Palette.green,
-    actionId: 'customer.addresses',
-    group: 'business',
+    key: 'referrals',
+    label: 'Referral & Rewards',
+    Icon: Gift,
+    color: Palette.purple,
+    actionId: 'customer.referrals',
+    group: 'engagement',
+  },
+  {
+    key: 'feedback',
+    label: 'Feedback',
+    Icon: MessageSquare,
+    color: Palette.orange,
+    actionId: 'customer.feedback',
+    group: 'engagement',
   },
 
   {
@@ -487,6 +500,7 @@ export function groupMoreMenu(
     business: [],
     operations: [],
     insights: [],
+    engagement: [],
     support: [],
   };
   for (const item of items) buckets[item.group].push(item);
