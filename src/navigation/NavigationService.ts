@@ -7,15 +7,28 @@
  * resolvers. Wire the ref onto NavigationContainer in App.tsx.
  *
  * TYPING CONTRACT:
- *   - `navigate` and `replace` are typed against `RootStackParamList`.
- *     From outside React, only top-level routes can be targeted; nested
- *     navigation should go through the normal `navigation` prop inside
- *     screens, which is fully typed by React Navigation.
+ *   - `navigate` accepts ANY route declared anywhere in the app.
+ *     React Navigation's runtime `navigate('X')` searches the
+ *     currently mounted navigator tree for a screen named X, so the
+ *     honest type is the flat union of every ParamList — not just
+ *     the root list. This is what closes the previous `as never`
+ *     escape hatch in useMoreActions and any other cross-flow call
+ *     site (Support, CustomersList, NotificationCentre, etc.).
+ *
+ *     Duplicate route names across ParamLists (e.g. Support in every
+ *     role stack) must have identical params types — TypeScript will
+ *     collapse them to `never` and fail callers if they diverge.
+ *     Verified as of this commit; enforced structurally going forward.
+ *
+ *   - `replace` and `reset` stay typed against `RootStackParamList`.
+ *     From outside React, only top-level transitions should be
+ *     dispatched — nested replace / reset are ambiguous (which
+ *     nested tree owns the operation?). Screen-level replace should
+ *     go through the screen's own fully-typed `navigation.replace()`.
+ *
  *   - `getCurrentRoute` returns a DISCRIMINATED UNION across every
- *     param list in the app, so callers get `route.params` narrowed
- *     correctly by `route.name` without any casts. This is what
- *     closed the "as never" escape hatch that used to leak into
- *     useMoreActions.
+ *     param list, so callers get `route.params` narrowed correctly
+ *     by `route.name` without any casts.
  * ------------------------------------------------------------------
  */
 
@@ -45,18 +58,52 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 export const isReady = (): boolean => navigationRef.isReady();
 
 /* =================================================================
+ * Flat any-route param list
+ *
+ * Intersection of every ParamList in the app. `keyof` this type is
+ * the set of all valid route names for a flat `navigate('X')` call —
+ * matching React Navigation's runtime tree-search behaviour.
+ *
+ * Because it's an INTERSECTION, duplicate keys must have compatible
+ * value types. Two routes with the same name and different params
+ * would collapse to `never` for that key and fail callers — which is
+ * the outcome we want, not something to work around.
+ * ================================================================= */
+
+type AllScreensParamList = RootStackParamList &
+  OnboardingParamList &
+  AuthParamList &
+  CustomerStackParamList &
+  CustomerTabParamList &
+  VendorStackParamList &
+  VendorTabParamList &
+  DriverStackParamList &
+  DriverTabParamList &
+  UcStackParamList &
+  UcTabParamList;
+
+/* =================================================================
  * navigate
  * ================================================================= */
 
 /**
- * Typed navigate. The overload requires params exactly when the
- * target route needs them and forbids them otherwise. Safe to call
- * before the container is ready — silently no-ops.
+ * Typed navigate to ANY route in the app.
+ *
+ * The overload requires params exactly when the target route needs
+ * them and forbids them otherwise. Safe to call before the container
+ * is ready — silently no-ops.
+ *
+ * Runtime semantics: React Navigation searches the currently mounted
+ * navigator tree for a screen with the given name. If found, focuses
+ * it (respecting the nesting). If not found, the call is a no-op.
+ * Because every declared route is now also registered (see the
+ * per-role navigators), that "not found" case cannot happen for any
+ * name TypeScript accepts.
  */
-export function navigate<RouteName extends keyof RootStackParamList>(
-  ...args: RootStackParamList[RouteName] extends undefined
+export function navigate<RouteName extends keyof AllScreensParamList>(
+  ...args: AllScreensParamList[RouteName] extends undefined
     ? [screen: RouteName]
-    : [screen: RouteName, params: RootStackParamList[RouteName]]
+    : [screen: RouteName, params: AllScreensParamList[RouteName]]
 ): void {
   if (!navigationRef.isReady()) return;
   // The overload above narrows callers correctly; the runtime call

@@ -18,13 +18,17 @@
  *   - Uses the imperative `navigate()` helper from NavigationService,
  *     the same one already used by the axios refresh interceptor.
  *     Works from anywhere, including inside modals/sheets that sit
- *     outside the navigation stack.
+ *     outside the navigation stack. As of the typing widening in
+ *     NavigationService, `navigate` accepts any route declared
+ *     anywhere in the app — no `as never` casts needed.
  *   - Uses `useAppDispatch()` for redux (logout).
  *
  * TODO(future):
- *   - Many actionIds currently `noop()` because those screens don't
- *     exist yet. Replace `noop()` with `navigate('ScreenName')` as
- *     each screen lands. The type system will remind you.
+ *   - Some actionIds currently `noop()` because their target screens
+ *     aren't declared in any ParamList yet (e.g. Profile, Settings,
+ *     Feedback). Declare + register + `navigate('ScreenName')` — the
+ *     type system will accept it automatically once the ParamList
+ *     entry lands.
  * ------------------------------------------------------------------
  */
 
@@ -54,22 +58,26 @@ export function useMoreActions() {
       switch (actionId) {
         /* ---- Shared ---- */
         case 'profile':
-          // TODO: navigate('Profile' as never) once the screen exists.
+          // TODO: declare 'Profile' in each role's ParamList, register
+          // the screen in each role navigator, then `navigate('Profile')`.
+          // (No `as never` needed after `NavigationService.navigate`
+          // was widened to accept any declared route.)
           noop();
           return;
 
         case 'notifications':
-          // Each role stack declares a NotificationCentre screen in
-          // src/navigation/types.ts. Uncomment when the screen lands:
-          // navigate('NotificationCentre' as never);
-          noop();
+          // Every role stack declares & registers NotificationCentre
+          // (as a NotImplementedScreen placeholder until the real UI
+          // lands). Tapping the tile visibly navigates to the
+          // placeholder, which is better UX than a silent no-op.
+          navigate('NotificationCentre');
           return;
 
         case 'support':
-          // Support IS declared in AuthParamList and each role stack.
-          // Cast is needed because `navigate` is typed against the
-          // root param list only.
-          navigate('Support' as never);
+          // Support is registered in AuthParamList and in every role
+          // stack. `navigate` (now widened) resolves it against the
+          // currently mounted tree.
+          navigate('Support');
           return;
 
         case 'feedback':
@@ -116,7 +124,7 @@ export function useMoreActions() {
 
         /* ---- UC ---- */
         case 'uc.customers':
-          navigate('CustomersList' as never);
+          navigate('CustomersList');
           return;
 
         case 'uc.vendors':

@@ -83,7 +83,7 @@ type TabRouteMinimal = { name: string };
 
 export type MoreTabController = {
   /** Spread as `screenOptions` on the Tab.Navigator. */
-  screenOptions: { headerShown: false };
+  screenOptions: { headerShown: false; freezeOnBlur: true };
   /** Pass as `screenListeners` on the Tab.Navigator. Dismisses the sheet on any non-More tabPress. */
   screenListeners: (args: { route: TabRouteMinimal }) => {
     tabPress: () => void;
@@ -112,7 +112,36 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const bottomInset = useTabBarFootprint();
 
-  const screenOptions = useMemo(() => ({ headerShown: false as const }), []);
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false as const,
+      /**
+       * freezeOnBlur — react-navigation v7 + react-freeze integration.
+       *
+       * When a tab is not focused, React reconciliation for its subtree
+       * is paused. TanStack Query keeps updating its cache; Redux keeps
+       * dispatching; UI-thread animations (Reanimated, gesture-handler)
+       * keep running — only JSX re-rendering is deferred until the tab
+       * is focused again.
+       *
+       * Real-world impact for this app:
+       *   - UC dashboard's charts and revenue queries stop redrawing
+       *     while the user is on Bookings/Trips/Quotations. CPU + GPU
+       *     saved on every state tick that would have caused an
+       *     invisible re-render.
+       *   - When the user returns to Dashboard, it re-renders once
+       *     with the latest cached data — no stale UI, no re-fetch.
+       *
+       * Safe here because no tab in this app relies on background
+       * setState-driven animation (i.e. `setInterval` that ticks a
+       * useState counter to move a UI element). If such a screen is
+       * added later, hoist the animation to Reanimated (UI thread)
+       * or override this option per-screen with `freezeOnBlur: false`.
+       */
+      freezeOnBlur: true as const,
+    }),
+    [],
+  );
 
   const openMoreListeners = useMemo(
     () => ({
