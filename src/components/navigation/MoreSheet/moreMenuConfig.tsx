@@ -47,8 +47,9 @@ import {
   Users,
   Building2,
   Wallet,
-  BarChart3,
-  Boxes,
+  AlertTriangle,
+  TrendingUp,
+  MessageSquare,
   LogOut,
   type LucideProps,
 } from 'lucide-react-native';
@@ -61,12 +62,18 @@ import { Colors } from '@theme';
 
 export type MoreRole = 'customer' | 'vendor' | 'driver' | 'uc';
 
-export type MoreGroup = 'account' | 'business' | 'support';
+export type MoreGroup =
+  | 'account'
+  | 'business'
+  | 'operations'
+  | 'insights'
+  | 'support';
 
 export type MoreActionId =
   | 'profile'
   | 'notifications'
   | 'support'
+  | 'feedback'
   | 'settings'
   | 'logout'
   | 'customer.invoices'
@@ -83,10 +90,10 @@ export type MoreActionId =
   | 'driver.rewards'
   | 'uc.customers'
   | 'uc.vendors'
-  | 'uc.staff'
-  | 'uc.finance'
-  | 'uc.reports'
-  | 'uc.inventory';
+  | 'uc.payments'
+  | 'uc.drivers'
+  | 'uc.issues'
+  | 'uc.performance';
 
 export type MoreItem = {
   key: string;
@@ -116,11 +123,19 @@ const Palette = {
  * Section metadata — order in which sections render in the sheet.
  * ----------------------------------------------------------------- */
 
-export const MORE_GROUP_ORDER: MoreGroup[] = ['account', 'business', 'support'];
+export const MORE_GROUP_ORDER: MoreGroup[] = [
+  'account',
+  'business',
+  'operations',
+  'insights',
+  'support',
+];
 
 export const MORE_GROUP_LABEL: Record<MoreGroup, string> = {
   account: 'Account',
   business: 'Business',
+  operations: 'Operations',
+  insights: 'Insights',
   support: 'Support',
 };
 
@@ -402,44 +417,46 @@ const ucMore: MoreItem[] = [
     group: 'business',
   },
   {
-    key: 'staff',
-    label: 'Staff',
-    Icon: UserCheck,
-    color: Palette.blue,
-    actionId: 'uc.staff',
-    group: 'business',
-  },
-  {
-    key: 'finance',
-    label: 'Finance',
+    key: 'payments',
+    label: 'Payments',
     Icon: Wallet,
     color: Palette.green,
-    actionId: 'uc.finance',
-    group: 'business',
-  },
-  {
-    key: 'reports',
-    label: 'Reports',
-    Icon: BarChart3,
-    color: Palette.purple,
-    actionId: 'uc.reports',
-    group: 'business',
-  },
-  {
-    key: 'inventory',
-    label: 'Inventory',
-    Icon: Boxes,
-    color: Palette.slate,
-    actionId: 'uc.inventory',
+    actionId: 'uc.payments',
     group: 'business',
   },
 
   {
-    key: 'support',
-    label: 'Support',
-    Icon: LifeBuoy,
+    key: 'drivers',
+    label: 'Drivers',
+    Icon: UserCheck,
+    color: Palette.blue,
+    actionId: 'uc.drivers',
+    group: 'operations',
+  },
+  {
+    key: 'issues',
+    label: 'Issues',
+    Icon: AlertTriangle,
     color: Palette.red,
-    actionId: 'support',
+    actionId: 'uc.issues',
+    group: 'operations',
+  },
+
+  {
+    key: 'performance',
+    label: 'Performance',
+    Icon: TrendingUp,
+    color: Palette.purple,
+    actionId: 'uc.performance',
+    group: 'insights',
+  },
+
+  {
+    key: 'feedback',
+    label: 'Feedback',
+    Icon: MessageSquare,
+    color: Palette.orange,
+    actionId: 'feedback',
     group: 'support',
   },
   {
@@ -468,6 +485,8 @@ export function groupMoreMenu(
   const buckets: Record<MoreGroup, MoreItem[]> = {
     account: [],
     business: [],
+    operations: [],
+    insights: [],
     support: [],
   };
   for (const item of items) buckets[item.group].push(item);

@@ -72,6 +72,13 @@ export function useMoreActions() {
           navigate('Support' as never);
           return;
 
+        case 'feedback':
+          // TODO: point at a dedicated Feedback screen once it exists.
+          // Routed to Support for now so the UC "More" sheet has a
+          // working destination.
+          noop();
+          return;
+
         case 'settings':
           noop();
           return;
@@ -113,10 +120,10 @@ export function useMoreActions() {
           return;
 
         case 'uc.vendors':
-        case 'uc.staff':
-        case 'uc.finance':
-        case 'uc.reports':
-        case 'uc.inventory':
+        case 'uc.payments':
+        case 'uc.drivers':
+        case 'uc.issues':
+        case 'uc.performance':
           noop();
           return;
 

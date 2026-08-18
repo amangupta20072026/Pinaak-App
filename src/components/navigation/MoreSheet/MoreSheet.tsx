@@ -8,12 +8,16 @@
  *
  *   1. DETERMINISTIC HEIGHT.
  *      Sheet snap point is computed statically from the menu-item
- *      count for the given role, using known layout constants. We do
- *      NOT use `enableDynamicSizing` — in @gorhom/bottom-sheet 5.2.x
- *      it depends on the inner ScrollView's `onLayout` firing before
- *      `present()` is called, and on cold/warm renders it can silently
- *      no-op or open at 0px. That was the "sometimes opens, sometimes
- *      doesn't" bug. Static height eliminates the race entirely.
+ *      count for the given role, using known layout constants.
+ *      `enableDynamicSizing` is explicitly set to `false` below — in
+ *      @gorhom/bottom-sheet v5 it defaults to `true`, which silently
+ *      ignores `snapPoints` and grows the sheet to fit its content
+ *      instead. Left at its default, that's exactly what caused the
+ *      sheet to expand to full screen once a role's menu (e.g. UC's
+ *      5 groups) grew taller than the 60% snap point. With it off,
+ *      the sheet stays fixed at 60% and BottomSheetScrollView handles
+ *      the overflow by scrolling internally, as intended.
+ *      (Ref: https://gorhom.dev/react-native-bottom-sheet/dynamic-sizing)
  *
  *   2. IDEMPOTENT IMPERATIVE API.
  *      `present()` / `dismiss()` are safe to call at any time in any
@@ -337,13 +341,24 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
          *   - Backdrop tap → sheet dismisses.
          */
         enableOverDrag={false}
+        /**
+         * enableDynamicSizing={false}
+         *
+         * v5 defaults this to `true`, which makes the sheet ignore
+         * `snapPoints` and resize itself to fit its content instead.
+         * That's the root cause of the "sheet becomes full screen
+         * once you scroll to a role with more groups" bug: content
+         * taller than 60% caused the library to grow the sheet to
+         * match it. Disabling this restores the fixed-60%-with-
+         * internal-scroll behaviour `snapPoints` was written for.
+         * Official guidance: https://gorhom.dev/react-native-bottom-sheet/dynamic-sizing
+         */
+        enableDynamicSizing={false}
       >
         <BottomSheetScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>More</Text>
-
           {MORE_GROUP_ORDER.map(group => {
             const groupItems = grouped[group];
             if (groupItems.length === 0) return null;
@@ -448,15 +463,8 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xs,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.xxl,
-  },
-
-  title: {
-    ...Typography.h4,
-    color: Colors.textPrimary,
-    fontWeight: '600',
-    marginBottom: Spacing.lg,
   },
 
   section: {
