@@ -10,6 +10,10 @@ import type {
   EnquiryId,
 } from '@app-types/ids';
 import type { UserRole } from '@rbac/roles';
+// Value import (not `import type`) — the tab param list types below use
+// `[MORE_ROUTE_NAME]` as a computed key so that renaming the constant
+// is a single-point-of-truth change caught by TypeScript everywhere.
+import { MORE_ROUTE_NAME } from './tabs/shared/routeNames';
 
 /* ---------------------- Root ---------------------- */
 export type RootStackParamList = {
@@ -57,7 +61,7 @@ export type CustomerTabParamList = {
   Quotations: undefined;
   Bookings: undefined;
   Payments: undefined;
-  More: undefined;
+  [MORE_ROUTE_NAME]: undefined;
 };
 
 /* ------------------- Vendor stack ------------------- */
@@ -83,7 +87,7 @@ export type VendorTabParamList = {
   Bookings: undefined;
   Fleet: undefined;
   Drivers: undefined;
-  More: undefined;
+  [MORE_ROUTE_NAME]: undefined;
 };
 
 /* ------------------- Driver stack ------------------- */
@@ -106,7 +110,7 @@ export type DriverTabParamList = {
   MyTrips: undefined;
   Emergency: undefined;
   Earnings: undefined;
-  More: undefined;
+  [MORE_ROUTE_NAME]: undefined;
 };
 
 /* --------------------- UC stack --------------------- */
@@ -134,7 +138,7 @@ export type UcTabParamList = {
   Quotations: undefined;
   Bookings: undefined;
   Trips: undefined;
-  More: undefined;
+  [MORE_ROUTE_NAME]: undefined;
 };
 
 /* ================================================================
