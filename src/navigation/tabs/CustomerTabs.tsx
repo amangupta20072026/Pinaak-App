@@ -4,9 +4,15 @@
  * ==================================================================
  * CustomerTabs — Tab navigator for the Customer role
  * ==================================================================
- * See UcTabs.tsx for the full one-way-data-flow contract that
- * governs how tapping tabs interacts with the More sheet.
- * Same rules apply here: non-More tabs never touch the sheet.
+ * See UcTabs.tsx for the full one-way-data-flow contract governing
+ * tab taps and the More sheet. Same rules apply here:
+ *
+ *   - Non-More tabs have NO per-screen tabPress listener.
+ *   - The More tab's per-screen listener owns sheet presentation.
+ *   - The Tab.Navigator's `screenListeners.tabPress` dismisses the
+ *     sheet on every non-More tap — which correctly handles the
+ *     "re-tap the currently focused tab" case that a state.index
+ *     observer misses.
  * ==================================================================
  */
 
@@ -23,7 +29,6 @@ import {
 } from '../../components/navigation/CustomTabBar';
 import {
   MoreSheet,
-  SheetDismissOnRouteChange,
   type MoreSheetRef,
 } from '../../components/navigation/MoreSheet';
 import type { CustomerTabParamList } from '../types';
@@ -41,17 +46,11 @@ const CustomerTabs: React.FC = () => {
 
   const renderTabBar = useCallback(
     (props: BottomTabBarProps) => (
-      <>
-        <SheetDismissOnRouteChange
-          tabIndex={props.state.index}
-          sheetRef={moreSheetRef}
-        />
-        <CustomTabBar
-          {...props}
-          role="customer"
-          overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
-        />
-      </>
+      <CustomTabBar
+        {...props}
+        role="customer"
+        overrideActiveIndex={isMoreSheetOpen ? MORE_TAB_INDEX : undefined}
+      />
     ),
     [isMoreSheetOpen],
   );
@@ -68,9 +67,23 @@ const CustomerTabs: React.FC = () => {
     [],
   );
 
+  const screenListeners = useCallback(
+    ({ route }: { route: { name: string } }) => ({
+      tabPress: () => {
+        if (route.name === 'More') return;
+        moreSheetRef.current?.dismiss();
+      },
+    }),
+    [],
+  );
+
   return (
     <>
-      <Tab.Navigator screenOptions={screenOptions} tabBar={renderTabBar}>
+      <Tab.Navigator
+        screenOptions={screenOptions}
+        screenListeners={screenListeners}
+        tabBar={renderTabBar}
+      >
         <Tab.Screen name="Home" component={CustomerHomeScreen} />
         <Tab.Screen name="Quotations" component={PlaceholderScreen} />
         <Tab.Screen name="Bookings" component={PlaceholderScreen} />
