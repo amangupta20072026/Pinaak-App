@@ -344,7 +344,7 @@ const SlideTwo: React.FC = memo(() => (
       <Animated.View entering={FadeInDown.duration(600)}>
         <Text style={styles.headline} accessibilityRole="header">
           <Text style={styles.headlinePrimary}>हर सफर है </Text>
-          <Text style={styles.headlineAccent}>खास ❤️</Text>
+          <Text style={styles.headlineAccent}>खास</Text>
         </Text>
         <Text style={styles.description}>
           Experience safe, reliable and comfortable vehicle rental services

@@ -24,9 +24,9 @@ export type RoleTint = 'primary' | 'secondary' | 'accent' | 'info';
 
 export type RoleConfig = {
   id: UserRole;
-  /** Long form shown on picker cards ("I am a Customer" / "Urban Cruise Admin"). */
+  /** Long form shown on picker cards ("I am a Customer" / "Urban Cruise"). */
   pickerTitle: string;
-  /** Short form shown in Selected Role card + welcome text ("Customer" / "Urban Cruise Admin"). */
+  /** Short form shown in Selected Role card + welcome text ("Customer" / "Urban Cruise"). */
   shortLabel: string;
   description: string;
   Icon: React.FC<IconProps>;
@@ -145,8 +145,8 @@ export const ROLES: RoleConfig[] = [
   },
   {
     id: 'uc',
-    pickerTitle: 'Urban Cruise Admin',
-    shortLabel: 'Urban Cruise Admin',
+    pickerTitle: 'Urban Cruise',
+    shortLabel: 'Urban Cruise',
     description: 'Manage Sales & Operations',
     Icon: BadgeIcon,
     tint: 'accent',
