@@ -90,6 +90,12 @@ export const queryKeys = {
 
   uc: {
     all: ['uc'] as const,
+    customers: {
+      all: () => ['uc', 'customers'] as const,
+      list: (filters: Record<string, unknown>) =>
+        ['uc', 'customers', 'list', filters] as const,
+      detail: (id: string) => ['uc', 'customers', 'detail', id] as const,
+    },
     vendors: {
       all: () => ['uc', 'vendors'] as const,
       detail: (id: VendorId) => ['uc', 'vendors', id] as const,

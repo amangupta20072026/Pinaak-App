@@ -102,6 +102,10 @@ export const endpoints = {
   },
 
   uc: {
+    customers: {
+      list: () => '/uc/customers',
+      detail: (id: string) => `/uc/customers/${id}`,
+    },
     enquiries: {
       list: () => '/uc/enquiries',
       create: () => '/uc/enquiries',
