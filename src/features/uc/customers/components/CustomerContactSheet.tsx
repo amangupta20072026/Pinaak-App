@@ -32,8 +32,15 @@ type Props = {
   onDismiss?: () => void;
 };
 
-const WHATSAPP = '#25D366';
 const EMAIL = '#FB8C00';
+
+/* Soft-tinted quick-action colors (2026 pastel style) */
+const CALL_TINT_BG = '#E7F7EC';
+const CALL_TINT_FG = '#049856';
+const WHATSAPP_TINT_BG = '#E3F9EA';
+const WHATSAPP_TINT_FG = '#1FA855';
+const EMAIL_TINT_BG = '#FFF1E0';
+const EMAIL_TINT_FG = '#D97B0A';
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', {
@@ -173,24 +180,24 @@ const SheetContent: React.FC<ContentProps> = ({
       <View style={styles.quickRow}>
         <QuickAction
           label="Call"
-          color={Colors.primary}
-          filled
+          bg={CALL_TINT_BG}
+          fg={CALL_TINT_FG}
           onPress={onCall}
-          icon={<Phone size={22} color="#fff" strokeWidth={2.2} />}
+          icon={<Phone size={22} color={CALL_TINT_FG} strokeWidth={2.2} />}
         />
         <QuickAction
           label="WhatsApp"
-          color={WHATSAPP}
-          filled
+          bg={WHATSAPP_TINT_BG}
+          fg={WHATSAPP_TINT_FG}
           onPress={onWhatsApp}
-          icon={<WhatsAppIcon size={22} color="#fff" />}
+          icon={<WhatsAppIcon size={22} color={WHATSAPP_TINT_FG} />}
         />
         <QuickAction
           label="Email"
-          color={EMAIL}
-          filled
+          bg={EMAIL_TINT_BG}
+          fg={EMAIL_TINT_FG}
           onPress={onEmail}
-          icon={<Mail size={22} color="#fff" strokeWidth={2.2} />}
+          icon={<Mail size={22} color={EMAIL_TINT_FG} strokeWidth={2.2} />}
         />
       </View>
 
@@ -251,10 +258,10 @@ const SheetContent: React.FC<ContentProps> = ({
 const QuickAction: React.FC<{
   label: string;
   icon: React.ReactNode;
-  color: string;
-  filled?: boolean;
+  bg: string;
+  fg: string;
   onPress: () => void;
-}> = ({ label, icon, color, filled, onPress }) => (
+}> = ({ label, icon, bg, fg, onPress }) => (
   <Pressable
     onPress={onPress}
     accessibilityRole="button"
@@ -264,18 +271,8 @@ const QuickAction: React.FC<{
       pressed && { transform: [{ scale: 0.96 }] },
     ]}
   >
-    <View
-      style={[
-        styles.quickCircle,
-        filled
-          ? { backgroundColor: color }
-          : { backgroundColor: '#fff', borderWidth: 1.5, borderColor: color },
-        Shadows.sm,
-      ]}
-    >
-      {icon}
-    </View>
-    <Text style={[styles.quickLabel, { color }]}>{label}</Text>
+    <View style={[styles.quickCircle, { backgroundColor: bg }]}>{icon}</View>
+    <Text style={[styles.quickLabel, { color: fg }]}>{label}</Text>
   </Pressable>
 );
 

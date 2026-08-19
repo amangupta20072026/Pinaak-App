@@ -1,9 +1,10 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Search, Filter } from 'lucide-react-native';
+import { Search, Filter, ChevronLeft } from 'lucide-react-native';
 import { Colors, Radius, Spacing, Typography } from '@theme';
 
 type Props = {
+  onBack: () => void;
   onSearch: () => void;
   onFilter: () => void;
   filterBadgeCount?: number;
@@ -29,46 +30,65 @@ const IconButton: React.FC<{
 );
 
 export const CustomerListHeader: React.FC<Props> = ({
+  onBack,
   onSearch,
   onFilter,
   filterBadgeCount,
 }) => (
-  <View style={styles.row}>
-    <View style={styles.textCol}>
-      <Text style={styles.title}>Customers</Text>
-      <Text style={styles.subtitle}>Manage and view registered customers.</Text>
+  <View>
+    <View style={styles.row}>
+      <View style={styles.titleRow}>
+        <Pressable onPress={onBack} hitSlop={8} style={styles.backBtn}>
+          <ChevronLeft
+            size={26}
+            color={Colors.textPrimary}
+            strokeWidth={2.25}
+          />
+        </Pressable>
+        <Text style={styles.title}>Customers</Text>
+      </View>
+      <View style={styles.actions}>
+        <IconButton label="Search" onPress={onSearch}>
+          <Search size={20} color={Colors.iconPrimary} />
+        </IconButton>
+        <IconButton
+          label="Filter"
+          onPress={onFilter}
+          badgeCount={filterBadgeCount}
+        >
+          <Filter size={20} color={Colors.iconPrimary} />
+        </IconButton>
+      </View>
     </View>
-    <View style={styles.actions}>
-      <IconButton label="Search" onPress={onSearch}>
-        <Search size={20} color={Colors.iconPrimary} />
-      </IconButton>
-      <IconButton
-        label="Filter"
-        onPress={onFilter}
-        badgeCount={filterBadgeCount}
-      >
-        <Filter size={20} color={Colors.iconPrimary} />
-      </IconButton>
-    </View>
+    <Text style={styles.subtitle}>Manage and view registered customers.</Text>
   </View>
 );
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  textCol: { flex: 1 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  backBtn: {
+    marginLeft: -Spacing.xs,
+    marginRight: Spacing.xs,
+    padding: Spacing.xs,
+  },
   title: {
     ...Typography.h1,
-    fontSize: 32,
+    fontSize: 26,
     color: Colors.textPrimary,
   },
   subtitle: {
     ...Typography.body,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Spacing.xs,
   },
   actions: { flexDirection: 'row', gap: Spacing.sm },
   iconBtnWrap: { alignItems: 'center' },

@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { useNavigation } from '@react-navigation/native';
 
 import {
   SafeScreen,
@@ -25,6 +26,7 @@ import {
 } from '../types';
 
 const CustomersListScreen: React.FC = () => {
+  const navigation = useNavigation();
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [page, setPage] = useState(1);
@@ -65,6 +67,7 @@ const CustomersListScreen: React.FC = () => {
     <SafeScreen edges={['top']}>
       <View style={styles.headerWrap}>
         <CustomerListHeader
+          onBack={() => navigation.goBack()}
           onSearch={() => setShowSearch(v => !v)}
           onFilter={openFilterSheet}
           filterBadgeCount={badgeCount}
