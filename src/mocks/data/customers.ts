@@ -5,7 +5,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-DEL-0001',
     type: 'personal',
-    status: 'active',
     name: 'Aarav Sharma',
     phone: '+91 98712 34501',
     email: 'aarav.sharma@gmail.com',
@@ -17,7 +16,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-DEL-0002',
     type: 'corporate',
-    status: 'active',
     name: 'Infosys BPM Ltd — Gurugram',
     phone: '+91 98100 12345',
     email: 'travel.gurugram@infosysbpm.com',
@@ -30,7 +28,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-MUM-0001',
     type: 'personal',
-    status: 'inactive',
     name: 'Sonam & Rajat Wedding — Nov 2026',
     phone: '+91 98200 98765',
     email: 'sonamweds@gmail.com',
@@ -42,7 +39,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-DEL-0003',
     type: 'personal',
-    status: 'active',
     name: 'Priya Verma',
     phone: '+91 98734 56789',
     email: 'priyaverma88@yahoo.in',
@@ -54,7 +50,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-BLR-0001',
     type: 'corporate',
-    status: 'active',
     name: 'Wipro Technologies — Sarjapur',
     phone: '+91 80412 34567',
     email: 'travel.blr@wipro.com',
@@ -67,7 +62,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-DEL-0004',
     type: 'personal',
-    status: 'active',
     name: 'Rohan Kapoor',
     phone: '+91 99998 88777',
     email: 'rohan.kapoor@outlook.com',
@@ -79,7 +73,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-JAI-0001',
     type: 'personal',
-    status: 'inactive',
     name: 'Malhotra Family Reunion — Sep 2026',
     phone: '+91 98291 12233',
     email: 'malhotra.reunion@gmail.com',
@@ -91,7 +84,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-DEL-0005',
     type: 'corporate',
-    status: 'active',
     name: 'Deloitte India — Cyber City',
     phone: '+91 12445 67890',
     email: 'travel-desk@deloitte.co.in',
@@ -104,7 +96,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-CHD-0001',
     type: 'personal',
-    status: 'active',
     name: 'Simran Kaur',
     phone: '+91 97798 89977',
     email: 'simrank@gmail.com',
@@ -116,7 +107,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-HYD-0001',
     type: 'corporate',
-    status: 'active',
     name: 'Microsoft India R&D — Hyderabad',
     phone: '+91 40402 34567',
     email: 'travel-in@microsoft.com',
@@ -129,7 +119,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-DEL-0006',
     type: 'personal',
-    status: 'blocked',
     name: 'Vikram Singh',
     phone: '+91 98183 45612',
     email: 'vikramsingh.rj@gmail.com',
@@ -141,7 +130,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-MUM-0002',
     type: 'corporate',
-    status: 'active',
     name: 'Reliance Industries — BKC',
     phone: '+91 22447 63000',
     email: 'travel@ril.com',
@@ -154,7 +142,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-PUN-0001',
     type: 'personal',
-    status: 'active',
     name: 'Aditi Deshmukh',
     phone: '+91 99604 45566',
     email: 'aditi.desh@gmail.com',
@@ -166,7 +153,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-GOA-0001',
     type: 'personal',
-    status: 'inactive',
     name: 'Nair-Menon Wedding — Dec 2026',
     phone: '+91 98452 34567',
     email: 'nair.menon.wedding@gmail.com',
@@ -178,7 +164,6 @@ export const mockCustomers: Customer[] = [
   {
     id: 'CUST-DEL-0007',
     type: 'personal',
-    status: 'active',
     name: 'Nishant Kumar',
     phone: '+91 98991 12233',
     email: 'nishantk1990@gmail.com',

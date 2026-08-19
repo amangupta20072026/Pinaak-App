@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { BottomSheetModal } from '@gorhom/bottom-sheet';
@@ -14,49 +14,60 @@ import { Colors, Spacing } from '@theme';
 import { useCustomerList } from '../hooks/useCustomerList';
 import { CustomerCard } from '../components/CustomerCard';
 import { CustomerListHeader } from '../components/CustomerListHeader';
-import { CustomerStatusTabs } from '../components/CustomerStatusTabs';
 import { Pagination } from '../components/Pagination';
 import { CustomerContactSheet } from '../components/CustomerContactSheet';
-import type { Customer, StatusFilter } from '../types';
+import { CustomerFilterSheet } from '../components/CustomerFilterSheet';
+import {
+  DEFAULT_CUSTOMER_FILTERS,
+  countActiveFilters,
+  type Customer,
+  type CustomerFilters,
+} from '../types';
 
 const CustomersListScreen: React.FC = () => {
-  const [status, setStatus] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [page, setPage] = useState(1);
 
-  const [selected, setSelected] = useState<Customer | null>(null);
-  const sheetRef = useRef<BottomSheetModal>(null);
+  const [filters, setFilters] = useState<CustomerFilters>(
+    DEFAULT_CUSTOMER_FILTERS,
+  );
 
-  const {
-    data,
-    counts,
-    totalPages,
-    isLoading,
-    isRefreshing,
-    error,
-    refresh,
-    refetch,
-  } = useCustomerList({ status, search, page, pageSize: 6 });
+  const [selected, setSelected] = useState<Customer | null>(null);
+  const contactSheetRef = useRef<BottomSheetModal>(null);
+  const filterSheetRef = useRef<BottomSheetModal>(null);
+
+  const { data, totalPages, isLoading, isRefreshing, error, refresh, refetch } =
+    useCustomerList({ search, page, pageSize: 6, filters });
 
   const onRowPress = useCallback((c: Customer) => {
     setSelected(c);
-    sheetRef.current?.present();
+    contactSheetRef.current?.present();
   }, []);
 
-  const onSheetDismiss = useCallback(() => {
+  const onContactDismiss = useCallback(() => {
     // small delay so content doesn't flash empty during close animation
     setTimeout(() => setSelected(null), 200);
   }, []);
+
+  const openFilterSheet = useCallback(() => {
+    filterSheetRef.current?.present();
+  }, []);
+
+  const onApplyFilters = useCallback((next: CustomerFilters) => {
+    setFilters(next);
+    setPage(1); // reset paging whenever the filter set changes
+  }, []);
+
+  const badgeCount = useMemo(() => countActiveFilters(filters), [filters]);
 
   return (
     <SafeScreen edges={['top']}>
       <View style={styles.headerWrap}>
         <CustomerListHeader
           onSearch={() => setShowSearch(v => !v)}
-          onFilter={() => {
-            /* TODO open filter sheet */
-          }}
+          onFilter={openFilterSheet}
+          filterBadgeCount={badgeCount}
         />
         {showSearch && (
           <SearchBar
@@ -66,15 +77,6 @@ const CustomersListScreen: React.FC = () => {
           />
         )}
       </View>
-
-      <CustomerStatusTabs
-        value={status}
-        counts={counts}
-        onChange={s => {
-          setStatus(s);
-          setPage(1);
-        }}
-      />
 
       {error ? (
         <ErrorView onRetry={refetch} />
@@ -106,9 +108,15 @@ const CustomersListScreen: React.FC = () => {
       )}
 
       <CustomerContactSheet
-        ref={sheetRef}
+        ref={contactSheetRef}
         customer={selected}
-        onDismiss={onSheetDismiss}
+        onDismiss={onContactDismiss}
+      />
+
+      <CustomerFilterSheet
+        ref={filterSheetRef}
+        initialFilters={filters}
+        onApply={onApplyFilters}
       />
     </SafeScreen>
   );

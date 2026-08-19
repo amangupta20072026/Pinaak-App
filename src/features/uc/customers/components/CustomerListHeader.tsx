@@ -3,20 +3,36 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Search, Filter } from 'lucide-react-native';
 import { Colors, Radius, Spacing, Typography } from '@theme';
 
-type Props = { onSearch: () => void; onFilter: () => void };
+type Props = {
+  onSearch: () => void;
+  onFilter: () => void;
+  filterBadgeCount?: number;
+};
 
 const IconButton: React.FC<{
   label: string;
   onPress: () => void;
   children: React.ReactNode;
-}> = ({ label, onPress, children }) => (
+  badgeCount?: number;
+}> = ({ label, onPress, children, badgeCount }) => (
   <Pressable onPress={onPress} style={styles.iconBtnWrap}>
-    <View style={styles.iconBtn}>{children}</View>
+    <View style={styles.iconBtn}>
+      {children}
+      {badgeCount && badgeCount > 0 ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badgeCount}</Text>
+        </View>
+      ) : null}
+    </View>
     <Text style={styles.iconLabel}>{label}</Text>
   </Pressable>
 );
 
-export const CustomerListHeader: React.FC<Props> = ({ onSearch, onFilter }) => (
+export const CustomerListHeader: React.FC<Props> = ({
+  onSearch,
+  onFilter,
+  filterBadgeCount,
+}) => (
   <View style={styles.row}>
     <View style={styles.textCol}>
       <Text style={styles.title}>Customers</Text>
@@ -26,7 +42,11 @@ export const CustomerListHeader: React.FC<Props> = ({ onSearch, onFilter }) => (
       <IconButton label="Search" onPress={onSearch}>
         <Search size={20} color={Colors.iconPrimary} />
       </IconButton>
-      <IconButton label="Filter" onPress={onFilter}>
+      <IconButton
+        label="Filter"
+        onPress={onFilter}
+        badgeCount={filterBadgeCount}
+      >
         <Filter size={20} color={Colors.iconPrimary} />
       </IconButton>
     </View>
@@ -66,5 +86,25 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  badgeText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
   },
 });

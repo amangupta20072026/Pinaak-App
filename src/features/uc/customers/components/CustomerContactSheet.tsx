@@ -167,17 +167,6 @@ const SheetContent: React.FC<ContentProps> = ({
         <Text style={styles.name} numberOfLines={2}>
           {customer.name}
         </Text>
-        <View style={styles.statusPill}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: statusColor(customer.status) },
-            ]}
-          />
-          <Text style={styles.statusText}>
-            {customer.status[0].toUpperCase() + customer.status.slice(1)}
-          </Text>
-        </View>
       </View>
 
       {/* QUICK ACTION CIRCLES */}
@@ -316,12 +305,6 @@ const InfoRow: React.FC<{
   </View>
 );
 
-function statusColor(s: Customer['status']) {
-  if (s === 'active') return Colors.success;
-  if (s === 'inactive') return Colors.warning;
-  return Colors.error;
-}
-
 /* ---------------- Styles ---------------- */
 
 const styles = StyleSheet.create({
@@ -362,23 +345,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: 4,
-    backgroundColor: Colors.surfaceMuted,
-    borderRadius: Radius.pill,
-  },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: {
-    ...Typography.caption,
-    color: Colors.textPrimary,
-    fontWeight: '600',
-    fontSize: 11,
-  },
-
   /* Quick action circles */
   quickRow: {
     flexDirection: 'row',

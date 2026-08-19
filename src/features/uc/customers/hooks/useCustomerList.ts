@@ -6,7 +6,7 @@
  * Single source of truth for "the list of UC customers for a given
  * filter combination." Backed by TanStack Query, so:
  *
- *   - each (status, search, page, pageSize) combo gets its own cache
+ *   - each (search, page, pageSize, filters) combo gets its own cache
  *     entry, remembered across screen mounts
  *   - warm start rehydrates from MMKV (see App.tsx)
  *   - a mutation elsewhere can invalidate all list variants with:
@@ -19,9 +19,9 @@
  *
  * Backend integration:
  *   The real endpoint is registered at endpoints.uc.customers.list()
- *   and returns { items, totalPages, counts }. Until the backend is
- *   ready, the queryFn falls back to fixture data with the same
- *   shape, so the screen works today.
+ *   and returns { items, totalPages }. Until the backend is ready,
+ *   the queryFn falls back to fixture data with the same shape, so
+ *   the screen works today.
  *
  *   To go live: delete the TEMP mock block inside fetchUcCustomers
  *   and uncomment the two apiClient.get lines.
@@ -37,81 +37,159 @@ import { queryKeys } from '@constants/queryKeys';
 import { fixtureUcCustomersAll } from '@mocks/fixtures/ucCustomers';
 import { delayLikeApi } from '@mocks/helpers/delay';
 
-import type { Customer, StatusFilter } from '../types';
+import {
+  DEFAULT_CUSTOMER_FILTERS,
+  type Customer,
+  type CustomerFilters,
+} from '../types';
 
 export type UseCustomerListArgs = {
-  status?: StatusFilter;
   search?: string;
   page?: number;
   pageSize?: number;
+  filters?: CustomerFilters;
 };
 
-type CustomerListFilters = Required<UseCustomerListArgs>;
+type CustomerListParams = Required<UseCustomerListArgs>;
 
 type CustomerListResponse = {
   items: Customer[];
   totalPages: number;
-  counts: Record<StatusFilter, number>;
 };
 
-const EMPTY_COUNTS: Record<StatusFilter, number> = {
-  all: 0,
-  active: 0,
-  inactive: 0,
-  blocked: 0,
-};
+/* ------------------------------------------------------------------ */
+/* Filter helpers                                                     */
+/* ------------------------------------------------------------------ */
+
+/** Inclusive of dateFrom, exclusive of the day AFTER dateTo. */
+function withinDateRange(
+  createdAt: string,
+  dateFrom: string | null,
+  dateTo: string | null,
+): boolean {
+  const t = new Date(createdAt).getTime();
+
+  if (dateFrom) {
+    const from = new Date(dateFrom);
+    from.setHours(0, 0, 0, 0);
+    if (t < from.getTime()) return false;
+  }
+
+  if (dateTo) {
+    const to = new Date(dateTo);
+    to.setHours(23, 59, 59, 999);
+    if (t > to.getTime()) return false;
+  }
+
+  return true;
+}
+
+function inTripsBucket(
+  totalBookings: number,
+  bucket: CustomerFilters['tripsBucket'],
+): boolean {
+  switch (bucket) {
+    case 'all':
+      return true;
+    case 'none':
+      return totalBookings === 0;
+    case '1to10':
+      return totalBookings >= 1 && totalBookings <= 10;
+    case '10plus':
+      return totalBookings > 10;
+  }
+}
+
+function sortCustomers(
+  items: Customer[],
+  sortBy: CustomerFilters['sortBy'],
+): Customer[] {
+  const copy = [...items];
+  switch (sortBy) {
+    case 'newest':
+      return copy.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    case 'oldest':
+      return copy.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+    case 'nameAsc':
+      return copy.sort((a, b) => a.name.localeCompare(b.name));
+    case 'mostTrips':
+      return copy.sort((a, b) => b.totalBookings - a.totalBookings);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Fetch                                                              */
+/* ------------------------------------------------------------------ */
 
 async function fetchUcCustomers(
-  filters: CustomerListFilters,
+  params: CustomerListParams,
 ): Promise<CustomerListResponse> {
   // TODO(backend): replace mock block below with:
   // const { data } = await apiClient.get<CustomerListResponse>(
   //   endpoints.uc.customers.list(),
-  //   { params: filters },
+  //   { params },
   // );
   // return data;
 
   await delayLikeApi();
 
-  const all = fixtureUcCustomersAll;
-  const q = filters.search.trim().toLowerCase();
+  const { search, page, pageSize, filters } = params;
+  const q = search.trim().toLowerCase();
 
-  const filtered = all.filter(c => {
-    if (filters.status !== 'all' && c.status !== filters.status) return false;
-    if (!q) return true;
-    return (
-      c.name.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      c.city.toLowerCase().includes(q)
-    );
+  const matched = fixtureUcCustomersAll.filter(c => {
+    // Text search
+    if (q) {
+      const hit =
+        c.name.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.city.toLowerCase().includes(q);
+      if (!hit) return false;
+    }
+
+    // Customer type
+    if (filters.type !== 'all' && c.type !== filters.type) return false;
+
+    // Registration date range
+    if (!withinDateRange(c.createdAt, filters.dateFrom, filters.dateTo))
+      return false;
+
+    // Trips bucket
+    if (!inTripsBucket(c.totalBookings, filters.tripsBucket)) return false;
+
+    return true;
   });
 
-  const counts: Record<StatusFilter, number> = {
-    all: all.length,
-    active: all.filter(c => c.status === 'active').length,
-    inactive: all.filter(c => c.status === 'inactive').length,
-    blocked: all.filter(c => c.status === 'blocked').length,
-  };
+  const sorted = sortCustomers(matched, filters.sortBy);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / filters.pageSize));
-  const start = (filters.page - 1) * filters.pageSize;
-  const items = filtered.slice(start, start + filters.pageSize);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const start = (page - 1) * pageSize;
+  const items = sorted.slice(start, start + pageSize);
 
-  return { items, totalPages, counts };
+  return { items, totalPages };
 }
 
+/* ------------------------------------------------------------------ */
+/* Hook                                                               */
+/* ------------------------------------------------------------------ */
+
 export function useCustomerList({
-  status = 'all',
   search = '',
   page = 1,
   pageSize = 6,
+  filters = DEFAULT_CUSTOMER_FILTERS,
 }: UseCustomerListArgs = {}) {
-  const filters: CustomerListFilters = { status, search, page, pageSize };
+  const params: CustomerListParams = { search, page, pageSize, filters };
 
   const query = useQuery<CustomerListResponse, Error>({
-    queryKey: queryKeys.uc.customers.list(filters),
-    queryFn: () => fetchUcCustomers(filters),
+    queryKey: queryKeys.uc.customers.list(params),
+    queryFn: () => fetchUcCustomers(params),
     placeholderData: keepPreviousData,
     // Uncomment if this list shouldn't be persisted to MMKV
     // (e.g. contains sensitive PII that shouldn't survive process kills):
@@ -120,7 +198,6 @@ export function useCustomerList({
 
   return {
     data: query.data?.items ?? [],
-    counts: query.data?.counts ?? EMPTY_COUNTS,
     totalPages: query.data?.totalPages ?? 1,
     isLoading: query.isPending,
     isRefreshing: query.isFetching && !query.isPending,
