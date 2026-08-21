@@ -5,12 +5,12 @@
  * ------------------------------------------------------------------
  * All routes declared in CustomerStackParamList are registered here.
  * Screens that don't have a real implementation yet are wired to
- * NotImplementedScreen — this eliminates the "declared in types /
+ * NoImplementedScreen — this eliminates the "declared in types /
  * missing at runtime" class of bug where `navigate('SomeRoute', …)`
  * type-checks but throws at runtime.
  *
  * SWAP PROCEDURE:
- *   When a real screen lands, replace `component={NotImplementedScreen}`
+ *   When a real screen lands, replace `component={NoImplementedScreen}`
  *   with the real component import. Route name and typing don't change.
  * ------------------------------------------------------------------
  */

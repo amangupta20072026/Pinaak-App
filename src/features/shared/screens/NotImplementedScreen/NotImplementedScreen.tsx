@@ -1,6 +1,6 @@
 /**
  * ------------------------------------------------------------------
- * NotImplementedScreen — Placeholder for registered-but-unbuilt routes
+ * NoImplementedScreen — Placeholder for registered-but-unbuilt routes
  * ------------------------------------------------------------------
  * Registered as the `component` for every route that exists in a
  * ParamList but does not yet have a real screen file. This turns

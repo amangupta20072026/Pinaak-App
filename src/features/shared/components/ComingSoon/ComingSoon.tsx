@@ -7,12 +7,12 @@
  * a hard-hat glyph. Callers wrap this in <SafeScreen> (+ optionally
  * <ScreenHeader>) so it fits both tab landings and stack pages.
  *
- * WHY NOT NotImplementedScreen?
- *   NotImplementedScreen is a DEVELOPER SAFETY NET — a bare-bones
+ * WHY NOT NoImplementedScreen?
+ *   NoImplementedScreen is a DEVELOPER SAFETY NET — a bare-bones
  *   placeholder registered on unimplemented ghost routes, showing
  *   the route name + params so devs can debug bad navigation calls.
  *   ComingSoon is USER-FACING — polished copy, brand-consistent, no
- *   route-name debug chip. Keep them separate: NotImplementedScreen
+ *   route-name debug chip. Keep them separate: NoImplementedScreen
  *   should never leak to production; ComingSoon is intentional
  *   product-facing messaging.
  * ------------------------------------------------------------------

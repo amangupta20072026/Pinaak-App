@@ -46,29 +46,41 @@
  * long since resolved to Dashboard.
  *
  * The new model:
- *   1. Sync every JS input (activeIndex, barWidth, routes.length)
- *      into a shared value BY WRITING IT DURING RENDER. Writing a
- *      shared value in render is safe — SharedValues are external to
- *      React's rendering model, no re-render is triggered, and idem-
- *      potent writes (same value) are free no-ops.
+ *   1. Sync JS-thread inputs (targetCx, derived from activeIndex +
+ *      barWidth + routes.length) into a shared value via a JS-thread
+ *      `useEffect`. React 18+ flushes passive effects synchronously
+ *      after commit and before paint, so the shared value is up to
+ *      date well before any UI thread frame processes it. Writing
+ *      during render was tempting for zero-latency sync — Reanimated
+ *      4's strict mode rightly flags that pattern because React may
+ *      bail on or retry renders in concurrent mode, turning render-
+ *      time writes into subtle correctness bugs. `useEffect` is the
+ *      officially-supported sync pattern.
  *   2. A single `useAnimatedReaction` on the UI thread observes the
  *      derived target, and calls `cx.value = withSpring(target)`
- *      whenever it changes. The reaction fires on the very next UI
- *      tick after the shared value write — there is no JS-thread
- *      commit window for `navigate` to race against.
- *   3. `useFocusEffect` re-drives the spring toward the correct
+ *      whenever it changes. Crucially, the animation trigger lives
+ *      on the UI thread — not inside a JS-thread effect — so it
+ *      cannot race with React commits or the JS thread stalling
+ *      during navigation.
+ *   3. `useFocusEffect` re-drives the spring toward the current
  *      target every time the screen regains focus. If any future
  *      change ever leaves cx in a stale state, focus heals it.
  *      This is the "self-healing UI" principle used by every
  *      production tab bar (React Nav's own default TabBar does the
  *      equivalent internally).
  *
+ * The final piece — timing of the deferred `navigate()` inside
+ * MoreSheet.handleDismiss — uses `InteractionManager.runAfterInter-
+ * actions`, which fires strictly AFTER useEffect flush. So the spring
+ * is always in-flight before navigation dispatches. See MoreSheet.tsx
+ * for that half of the fix.
+ *
  * If you need to change how the active tab is computed, edit the
  * `activeIndex` line — the animation model above will react.
  * ------------------------------------------------------------------
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   LayoutChangeEvent,
   Pressable,
@@ -260,18 +272,36 @@ const CustomTabBar: React.FC<Props> = ({
    * UI-thread animation model. See file header for the WHY.
    *
    * targetCxSV mirrors the JS-thread `targetCx` value onto the UI
-   * thread. Writing during render is safe: shared value writes do
-   * not cause React re-renders, and same-value writes are free
-   * no-ops. This is the pattern documented in Reanimated's docs
-   * under "sharing values from JS state".
+   * thread via a JS-thread useEffect. The animation itself runs on
+   * the UI thread via useAnimatedReaction below — the effect only
+   * pipes JS → shared value; it does NOT trigger the animation
+   * directly. That separation is what keeps this race-free:
+   *
+   *   - React commit installs new targetCx.
+   *   - useEffect flushes right after commit (before paint) and
+   *     writes targetCxSV.value.
+   *   - useAnimatedReaction observes the shared value change on the
+   *     UI thread's next tick and starts the spring.
+   *   - MoreSheet.handleDismiss defers `navigate()` via
+   *     InteractionManager.runAfterInteractions, which fires STRICTLY
+   *     AFTER useEffect flush. So the spring is already in-flight by
+   *     the time navigation dispatches — no interruption.
+   *
+   * A previous revision wrote `targetCxSV.value = targetCx` during
+   * render for zero-latency sync. Reanimated 4's strict mode
+   * (checkInvalidWriteDuringRender) rightly flags this: React may
+   * bail on the render, retry it (concurrent mode), or interleave
+   * it with other commits — any of which turn a render-time write
+   * into a subtle correctness bug in the general case. The
+   * useEffect pattern is the officially-supported sync pattern.
    *
    * `cx` is what the SVG path and badge translate consume. It's
-   * animated by useAnimatedReaction below — no JS-thread useEffect
-   * is involved, so navigation dispatches cannot race with the
-   * animation trigger.
+   * animated by useAnimatedReaction below.
    * ---------------------------------------------------------------- */
   const targetCxSV = useSharedValue(targetCx);
-  targetCxSV.value = targetCx;
+  useEffect(() => {
+    targetCxSV.value = targetCx;
+  }, [targetCx, targetCxSV]);
 
   const cx = useSharedValue(targetCx);
 

@@ -29,17 +29,28 @@
  *
  *   3. ACTIONS FIRE POST-DISMISS.
  *      When the user taps a menu item, we DO NOT navigate synchronously.
- *      Instead we stash the actionId, dismiss the sheet, and run the
- *      action inside `InteractionManager.runAfterInteractions` once the
- *      dismissal animation is fully complete. This prevents navigation
- *      transitions from clashing with the sheet's closing animation
- *      (a classic "jank + orphan sheet" bug), and — combined with the
- *      UI-thread animation reaction inside CustomTabBar — also ensures
- *      the tab bar's notch animates to the correct target before the
- *      destination screen covers it. Prior versions used
- *      `requestAnimationFrame` here, which fires ~16ms after the
- *      dismissal — too fast for the tab bar's JS-thread `useEffect +
- *      withSpring` model to reliably start, leaving the notch stuck.
+ *      Instead we stash the actionId, dismiss the sheet, and — inside
+ *      the sheet's onDismiss callback (which fires only after the
+ *      close animation has fully retired) — schedule the action via
+ *      `requestAnimationFrame`. That gives React one frame to commit
+ *      the `setIsMoreSheetOpen(false)` update from onChange(-1) and
+ *      flush its passive effects (including CustomTabBar's shared
+ *      value sync) BEFORE the destination screen mounts on top.
+ *
+ *      An earlier revision used `InteractionManager.runAfterInter-
+ *      actions` here, which React Native has since deprecated. We
+ *      reverted to `requestAnimationFrame` because:
+ *        - It is the RN-supported, non-deprecated primitive for
+ *          "next frame after commit".
+ *        - The tab bar's notch animation lives on the UI thread via
+ *          `useAnimatedReaction`, and CustomTabBar's `useFocusEffect`
+ *          re-drives the spring on every screen refocus. So even if
+ *          navigation dispatches before the spring completes, the
+ *          notch snaps to the correct target on return.
+ *      `requestIdleCallback` (RN's newer suggested replacement for
+ *      InteractionManager) is wrong for this use case — it fires
+ *      when the JS thread is idle, which can be many frames later.
+ *      Navigation should feel instant, not idle-deferred.
  *
  *   4. TAB BAR VISIBLE + INTERACTIVE.
  *      `bottomInset` = tab bar footprint. Sheet renders ABOVE the tab
@@ -61,13 +72,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import {
-  InteractionManager,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -302,29 +307,33 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * onDismiss — runs after the sheet is fully offscreen. Safe time
      * to dispatch navigation / redux side-effects.
      *
-     * We defer the action via `InteractionManager.runAfterInteractions`
-     * (not `requestAnimationFrame` — see below) so React commits any
-     * final post-animation state (phase → 'closed', backdrop
-     * unmounted, `isMoreSheetOpen` → false) BEFORE we push a new
-     * navigation. This prevents the next screen's mount from
-     * interleaving with the sheet's final teardown commit.
+     * We defer the action by ONE frame via `requestAnimationFrame` so
+     * React can commit any final post-dismissal state (phase →
+     * 'closed', backdrop unmounted, `isMoreSheetOpen` → false) and
+     * flush passive effects (CustomTabBar's targetCxSV shared-value
+     * sync) BEFORE we push the destination screen. This keeps the
+     * next screen's mount from interleaving with the sheet's
+     * teardown commit.
      *
-     * Why InteractionManager over requestAnimationFrame:
-     *   - `raf` fires on the very next frame (~16ms). That is enough
-     *     time for React to commit the setState from onChange(-1),
-     *     but NOT reliably enough for the tab bar's UI-thread
-     *     animation reaction to observe the resulting shared-value
-     *     change and start springing the notch back to the real
-     *     active tab. Prior versions used `raf` and shipped with
-     *     a visible bug: the notch stuck on More after a menu tap.
-     *   - `runAfterInteractions` waits for all registered interaction
-     *     handles to drain, then fires on a microtask. In practice it
-     *     is ~1-2 frames later than raf — imperceptible to the user,
-     *     but a rock-solid guarantee that every downstream React
-     *     commit and Reanimated frame from the dismissal has landed.
+     * Why raf rather than InteractionManager or requestIdleCallback:
+     *   - `InteractionManager.runAfterInteractions` is deprecated in
+     *     recent React Native versions.
+     *   - `requestIdleCallback` (RN's official replacement) fires
+     *     when the JS thread is idle — potentially many frames later.
+     *     That is the wrong timing for "user tapped, act now".
+     *   - `requestAnimationFrame` fires at the start of the next
+     *     frame, after React has committed and effects have flushed.
+     *     That is the exact "one tick later" behaviour we want.
      *
-     * The task is guaranteed to fire — InteractionManager falls back
-     * to a microtask when no interaction handles are registered.
+     * Safety net for the case where navigation dispatches before the
+     * tab bar's UI-thread spring animation can complete: CustomTabBar
+     * runs `useFocusEffect` that re-drives `cx.value = withSpring(
+     * targetCxSV.value)` every time the screen regains focus. So even
+     * if the destination screen covers UcTabs mid-spring and the
+     * shared value freezes at an intermediate position, focus after
+     * the user pops back snaps it to the correct target. This is the
+     * "self-healing UI" principle — timing precision here is nice to
+     * have, not load-bearing.
      * ---------------------------------------------------------------- */
     const handleDismiss = useCallback(() => {
       gestureStateRef.current = 'closed';
@@ -332,16 +341,12 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
       if (!action) return;
-      // Defer the action until after all in-flight interactions have
-      // settled. This gives:
-      //   - the sheet's own dismissal animation time to fully retire
-      //     (no orphan sheet clashing with a stack push);
-      //   - CustomTabBar's UI-thread useAnimatedReaction time to
-      //     observe the setIsMoreSheetOpen(false) → override cleared
-      //     and start springing cx toward the real active tab's x.
-      // The task is guaranteed to fire — InteractionManager falls back
-      // to a microtask when no interaction handles are registered.
-      InteractionManager.runAfterInteractions(() => {
+      // Defer navigation by one frame so React can commit the
+      // preceding onChange(-1) → setIsMoreSheetOpen(false) update
+      // and flush its passive effects before the destination screen
+      // mounts. See the block comment above for the full rationale
+      // and why raf is safe with the current tab-bar architecture.
+      requestAnimationFrame(() => {
         run(action);
       });
     }, [onOpenChange, run]);

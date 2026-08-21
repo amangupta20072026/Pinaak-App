@@ -73,7 +73,7 @@ export function useMoreActions() {
 
         case 'notifications':
           // Every role stack declares & registers NotificationCentre
-          // (as a NotImplementedScreen placeholder until the real UI
+          // (as a NoImplementedScreen placeholder until the real UI
           // lands). Tapping the tile visibly navigates to the
           // placeholder, which is better UX than a silent no-op.
           navigate('NotificationCentre');

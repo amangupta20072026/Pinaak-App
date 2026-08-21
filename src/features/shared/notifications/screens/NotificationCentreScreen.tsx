@@ -12,7 +12,7 @@
  * REGISTRATION:
  *   Every role stack registers this component under the route name
  *   "NotificationCentre" (previously the same name was registered
- *   against NotImplementedScreen as a dev ghost — this real screen
+ *   against NoImplementedScreen as a dev ghost — this real screen
  *   replaces that mapping wherever the ComingSoon UX is desired).
  *
  * WHY IT LIVES IN /shared/:
