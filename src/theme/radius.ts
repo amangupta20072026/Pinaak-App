@@ -1,7 +1,7 @@
 // src/theme/radius.ts
 /**
  * ------------------------------------------------------------------
- * Pinaak Border Radius System
+ * urbancruise Border Radius System
  * ------------------------------------------------------------------
  * Centralized corner-radius tokens.
  *

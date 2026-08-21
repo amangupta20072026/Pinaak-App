@@ -1,7 +1,7 @@
 // src/theme/colors.ts
 /**
  * ------------------------------------------------------------
- * Pinaak Theme Colors
+ * urbancruise Theme Colors
  * ------------------------------------------------------------
  * Centralized Color Palette
  * Never hardcode colors inside components.

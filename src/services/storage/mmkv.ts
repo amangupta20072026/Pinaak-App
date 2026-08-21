@@ -11,7 +11,7 @@
 import { createMMKV } from 'react-native-mmkv';
 import type { StorageKey } from '@constants/storageKeys';
 
-const store = createMMKV({ id: 'pinaak-general' });
+const store = createMMKV({ id: 'urbancruise-general' });
 
 export const mmkv = {
   setString(key: StorageKey, value: string): void {

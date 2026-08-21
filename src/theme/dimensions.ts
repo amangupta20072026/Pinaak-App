@@ -1,7 +1,7 @@
 // src/theme/dimensions.ts
 /**
  * ------------------------------------------------------------------
- * Pinaak Dimensions
+ * urbancruise Dimensions
  * ------------------------------------------------------------------
  * Centralized UI dimensions.
  *

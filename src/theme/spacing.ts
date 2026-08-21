@@ -1,7 +1,7 @@
 // src/theme/spacing.ts
 /**
  * ------------------------------------------------------------------
- * Pinaak Spacing System
+ * urbancruise Spacing System
  * ------------------------------------------------------------------
  * Centralized spacing tokens.
  *

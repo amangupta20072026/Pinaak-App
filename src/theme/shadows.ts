@@ -1,7 +1,7 @@
 // src/theme/shadows.ts
 /**
  * ------------------------------------------------------------------
- * Pinaak Shadow System
+ * urbancruise Shadow System
  * ------------------------------------------------------------------
  * Centralized elevation and shadow tokens.
  *

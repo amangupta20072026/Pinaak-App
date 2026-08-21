@@ -18,7 +18,7 @@ export type Tokens = {
   refreshToken: string;
 };
 
-const SERVICE_NAME = 'pinaak.auth';
+const SERVICE_NAME = 'urbancruise.auth';
 
 export async function saveTokens(tokens: Tokens): Promise<void> {
   await Keychain.setGenericPassword(SecureKeys.jwt, JSON.stringify(tokens), {

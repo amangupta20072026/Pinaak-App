@@ -1,7 +1,7 @@
 // src/theme/index.ts
 /**
  * ------------------------------------------------------------------
- * Pinaak Theme
+ * urbancruise Theme
  * ------------------------------------------------------------------
  * Centralized design-system exports.
  *

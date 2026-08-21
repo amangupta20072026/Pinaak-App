@@ -24,7 +24,7 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import { createMMKV } from 'react-native-mmkv';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
 
-const queryStore = createMMKV({ id: 'pinaak-query-cache' });
+const queryStore = createMMKV({ id: 'urbancruise-query-cache' });
 
 /**
  * AsyncStorage-shaped adapter over the sync MMKV instance.
@@ -48,7 +48,7 @@ const mmkvAsyncAdapter = {
 
 export const queryPersister = createAsyncStoragePersister({
   storage: mmkvAsyncAdapter,
-  key: 'pinaak-react-query',
+  key: 'urbancruise-react-query',
   // Throttled writes — default 1s is fine, but pin the value for clarity.
   throttleTime: 1000,
   serialize: JSON.stringify,

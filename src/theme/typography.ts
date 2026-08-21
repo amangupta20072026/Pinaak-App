@@ -1,7 +1,7 @@
 // src/theme/typography.ts
 /**
  * ------------------------------------------------------------------
- * Pinaak Typography
+ * urbancruise Typography
  * ------------------------------------------------------------------
  * Centralized Typography System
  * Never hardcode font sizes or weights inside components.

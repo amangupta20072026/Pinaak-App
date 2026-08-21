@@ -84,7 +84,7 @@ const appSliceTransform = createTransform<AppState, PersistedAppSubset>(
  * ----------------------------------------------------------------- */
 
 const persistConfig = {
-  key: 'pinaak-root',
+  key: 'urbancruise-root',
   version: 2, // bumped: shape changed vs previous release
   storage: reduxMmkvStorage,
   transforms: [appSliceTransform],

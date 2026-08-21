@@ -11,7 +11,7 @@
 import { createMMKV } from 'react-native-mmkv';
 import type { Storage } from 'redux-persist';
 
-const persistStore = createMMKV({ id: 'pinaak-persist' });
+const persistStore = createMMKV({ id: 'urbancruise-persist' });
 
 export const reduxMmkvStorage: Storage = {
   setItem: (key, value) => {
