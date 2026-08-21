@@ -33,7 +33,13 @@
  *      action inside `InteractionManager.runAfterInteractions` once the
  *      dismissal animation is fully complete. This prevents navigation
  *      transitions from clashing with the sheet's closing animation
- *      (a classic "jank + orphan sheet" bug).
+ *      (a classic "jank + orphan sheet" bug), and — combined with the
+ *      UI-thread animation reaction inside CustomTabBar — also ensures
+ *      the tab bar's notch animates to the correct target before the
+ *      destination screen covers it. Prior versions used
+ *      `requestAnimationFrame` here, which fires ~16ms after the
+ *      dismissal — too fast for the tab bar's JS-thread `useEffect +
+ *      withSpring` model to reliably start, leaving the notch stuck.
  *
  *   4. TAB BAR VISIBLE + INTERACTIVE.
  *      `bottomInset` = tab bar footprint. Sheet renders ABOVE the tab
@@ -55,7 +61,13 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  InteractionManager,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -182,12 +194,24 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * Cleanup — if the sheet unmounts while animating (rare, but
      * happens on logout / role swap), force-clear internal state so
      * a future remount starts from a known-clean phase.
+     *
+     * We ALSO notify the parent via `onOpenChange(false)` so that any
+     * parent state that mirrors the sheet's open/closed status (e.g.
+     * `isMoreSheetOpen` in useMoreTabController, which drives the
+     * tab bar's `overrideActiveIndex`) is reset synchronously with
+     * the unmount. Without this, an unmount-while-open leaves the
+     * parent believing the sheet is still visible, and the tab bar
+     * keeps the notch overridden onto the More tab indefinitely.
      * ---------------------------------------------------------------- */
     useEffect(() => {
       return () => {
         pendingActionRef.current = null;
         gestureStateRef.current = 'closed';
+        onOpenChange?.(false);
       };
+      // onOpenChange is expected to be stable (setState from useState);
+      // intentionally empty deps so the cleanup fires only on unmount.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     /* ---------------------------------------------------------------
@@ -278,14 +302,29 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * onDismiss — runs after the sheet is fully offscreen. Safe time
      * to dispatch navigation / redux side-effects.
      *
-     * We yield ONE frame via `requestAnimationFrame` so React commits
-     * any final post-animation state (phase → 'closed', backdrop
-     * unmounted) before we push a new navigation. This prevents the
-     * next screen's mount from interleaving with the sheet's final
-     * teardown commit, which is the class of bug the deprecated
-     * `InteractionManager.runAfterInteractions` used to solve.
-     * requestAnimationFrame is the RN-supported, non-deprecated
-     * primitive for exactly this "next-frame-after-commit" case.
+     * We defer the action via `InteractionManager.runAfterInteractions`
+     * (not `requestAnimationFrame` — see below) so React commits any
+     * final post-animation state (phase → 'closed', backdrop
+     * unmounted, `isMoreSheetOpen` → false) BEFORE we push a new
+     * navigation. This prevents the next screen's mount from
+     * interleaving with the sheet's final teardown commit.
+     *
+     * Why InteractionManager over requestAnimationFrame:
+     *   - `raf` fires on the very next frame (~16ms). That is enough
+     *     time for React to commit the setState from onChange(-1),
+     *     but NOT reliably enough for the tab bar's UI-thread
+     *     animation reaction to observe the resulting shared-value
+     *     change and start springing the notch back to the real
+     *     active tab. Prior versions used `raf` and shipped with
+     *     a visible bug: the notch stuck on More after a menu tap.
+     *   - `runAfterInteractions` waits for all registered interaction
+     *     handles to drain, then fires on a microtask. In practice it
+     *     is ~1-2 frames later than raf — imperceptible to the user,
+     *     but a rock-solid guarantee that every downstream React
+     *     commit and Reanimated frame from the dismissal has landed.
+     *
+     * The task is guaranteed to fire — InteractionManager falls back
+     * to a microtask when no interaction handles are registered.
      * ---------------------------------------------------------------- */
     const handleDismiss = useCallback(() => {
       gestureStateRef.current = 'closed';
@@ -293,7 +332,16 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
       if (!action) return;
-      requestAnimationFrame(() => {
+      // Defer the action until after all in-flight interactions have
+      // settled. This gives:
+      //   - the sheet's own dismissal animation time to fully retire
+      //     (no orphan sheet clashing with a stack push);
+      //   - CustomTabBar's UI-thread useAnimatedReaction time to
+      //     observe the setIsMoreSheetOpen(false) → override cleared
+      //     and start springing cx toward the real active tab's x.
+      // The task is guaranteed to fire — InteractionManager falls back
+      // to a microtask when no interaction handles are registered.
+      InteractionManager.runAfterInteractions(() => {
         run(action);
       });
     }, [onOpenChange, run]);

@@ -34,6 +34,28 @@
  *   cannot both fire for the same tap. `MORE_ROUTE_NAME` is a
  *   typed constant so rename drift is caught by TypeScript.
  *
+ * FOCUS RECONCILIATION (self-healing invariant):
+ *   When the tabs screen loses focus (a stack push from anywhere in
+ *   the app — including "user tapped a menu item that navigates"),
+ *   we force-close the sheet and clear `isMoreSheetOpen`. Rationale:
+ *
+ *     - Without this, if the sheet stays visually open across a
+ *       navigation event (e.g. because handleDismiss ran but a
+ *       re-render was skipped due to freezeOnBlur), the tab bar's
+ *       `overrideActiveIndex` sticks at the More index. On return,
+ *       the notch is stuck on More even though the real active tab
+ *       is Dashboard.
+ *     - `MoreSheet.dismiss()` is idempotent — safe to call even if
+ *       already closed.
+ *     - Setting `isMoreSheetOpen` false is idempotent too — React
+ *       bails on same-value setState.
+ *
+ *   Combined with the UI-thread animation reaction inside
+ *   CustomTabBar, this guarantees that after ANY navigation, the
+ *   next focus of the tabs screen lands with the notch at the real
+ *   active tab. See CustomTabBar's header comment for the other
+ *   half of the fix.
+ *
  * WHY A HOOK — role scalability:
  *   Every role-specific tab navigator (UcTabs, CustomerTabs,
  *   VendorTabs, DriverTabs, ...future) needs identical plumbing:
@@ -56,6 +78,7 @@
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
 
 import {
   CustomTabBar,
@@ -165,6 +188,38 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
       },
     }),
     [],
+  );
+
+  /* ---------------------------------------------------------------
+   * Focus reconciliation — see file header. Runs whenever the tabs
+   * screen (the one that hosts this hook) transitions in/out of
+   * focus. Both the initial focus run AND the cleanup on blur do
+   * the same thing: force the sheet closed and reset the
+   * open-state flag, so no stack push can leave us with an orphan
+   * "sheet visually open, real navigation elsewhere" mismatch.
+   *
+   * useCallback with empty deps is intentional — the effect only
+   * needs to run on focus/blur transitions, never on prop changes.
+   * ---------------------------------------------------------------- */
+  useFocusEffect(
+    useCallback(() => {
+      // On focus: ensure the sheet is closed. If we're re-focusing
+      // after a stack pop, the sheet should have already been closed
+      // by handleItemPress → dismiss(), but this is defence-in-depth
+      // against edge cases (deep links, notification-driven nav,
+      // programmatic navigate calls that bypass the sheet).
+      moreSheetRef.current?.dismiss();
+      setIsMoreSheetOpen(false);
+
+      return () => {
+        // On blur: same idempotent close. This is what guarantees the
+        // notch snaps back to the real active tab on re-focus — with
+        // isMoreSheetOpen=false, overrideActiveIndex is undefined, so
+        // CustomTabBar tracks state.index directly.
+        moreSheetRef.current?.dismiss();
+        setIsMoreSheetOpen(false);
+      };
+    }, []),
   );
 
   const renderTabBar = useCallback(

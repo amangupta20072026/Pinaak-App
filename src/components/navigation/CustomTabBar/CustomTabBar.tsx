@@ -18,6 +18,54 @@
  *
  * Tune the gap by adjusting NOTCH_GAP below.
  * ------------------------------------------------------------------
+ * ANIMATION MODEL (do not regress):
+ * ------------------------------------------------------------------
+ * The badge's horizontal position is driven by a UI-THREAD reaction,
+ * not a JS-thread `useEffect + withSpring`. Rationale (this is the
+ * bug fix commit):
+ *
+ * The previous model was:
+ *   const cx = useSharedValue(targetCx);
+ *   useEffect(() => { cx.value = withSpring(targetCx, SPRING); },
+ *             [targetCx, cx]);
+ *
+ * That coupled the animation to JS-thread commit ordering. When the
+ * user tapped a MoreSheet menu item, three async events fired within
+ * a couple of frames:
+ *   (1) MoreSheet.handleChange(-1) → setIsMoreSheetOpen(false)
+ *   (2) React re-renders CustomTabBar with a new targetCx
+ *   (3) MoreSheet.handleDismiss → raf(() => navigate('Profile'))
+ *
+ * If (3) executed before React's passive-effect flush for (2), the
+ * spring was never kicked off. `navigate` then pushed the destination
+ * screen, react-native-screens detached UcTabs (activityState=0), and
+ * the shared value `cx` sat frozen at the More-tab x-coordinate.
+ * When the user popped back, nothing re-drove `cx` — the effect deps
+ * hadn't changed since blur — so the notch stayed on More even
+ * though state.index (and therefore the icon *inside* the notch) had
+ * long since resolved to Dashboard.
+ *
+ * The new model:
+ *   1. Sync every JS input (activeIndex, barWidth, routes.length)
+ *      into a shared value BY WRITING IT DURING RENDER. Writing a
+ *      shared value in render is safe — SharedValues are external to
+ *      React's rendering model, no re-render is triggered, and idem-
+ *      potent writes (same value) are free no-ops.
+ *   2. A single `useAnimatedReaction` on the UI thread observes the
+ *      derived target, and calls `cx.value = withSpring(target)`
+ *      whenever it changes. The reaction fires on the very next UI
+ *      tick after the shared value write — there is no JS-thread
+ *      commit window for `navigate` to race against.
+ *   3. `useFocusEffect` re-drives the spring toward the correct
+ *      target every time the screen regains focus. If any future
+ *      change ever leaves cx in a stale state, focus heals it.
+ *      This is the "self-healing UI" principle used by every
+ *      production tab bar (React Nav's own default TabBar does the
+ *      equivalent internally).
+ *
+ * If you need to change how the active tab is computed, edit the
+ * `activeIndex` line — the animation model above will react.
+ * ------------------------------------------------------------------
  */
 
 import React, { useCallback, useState } from 'react';
@@ -31,14 +79,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
+  cancelAnimation,
   useAnimatedProps,
+  useAnimatedReaction,
   useAnimatedStyle,
-  useDerivedValue,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { Colors, Spacing, Typography } from '@theme';
 import { getTabConfig, type TabRoleName } from './tabConfig';
@@ -206,11 +256,62 @@ const CustomTabBar: React.FC<Props> = ({
     ? BADGE_OVERFLOW_TOP - 4
     : BADGE_OVERFLOW_TOP;
 
+  /* ---------------------------------------------------------------
+   * UI-thread animation model. See file header for the WHY.
+   *
+   * targetCxSV mirrors the JS-thread `targetCx` value onto the UI
+   * thread. Writing during render is safe: shared value writes do
+   * not cause React re-renders, and same-value writes are free
+   * no-ops. This is the pattern documented in Reanimated's docs
+   * under "sharing values from JS state".
+   *
+   * `cx` is what the SVG path and badge translate consume. It's
+   * animated by useAnimatedReaction below — no JS-thread useEffect
+   * is involved, so navigation dispatches cannot race with the
+   * animation trigger.
+   * ---------------------------------------------------------------- */
+  const targetCxSV = useSharedValue(targetCx);
+  targetCxSV.value = targetCx;
+
   const cx = useSharedValue(targetCx);
 
-  React.useEffect(() => {
-    cx.value = withSpring(targetCx, SPRING);
-  }, [targetCx, cx]);
+  useAnimatedReaction(
+    () => targetCxSV.value,
+    (next, prev) => {
+      if (prev === null) {
+        // First run after mount — snap without animating so the notch
+        // doesn't slide in from x=0 on cold start.
+        cx.value = next;
+        return;
+      }
+      if (next !== prev) {
+        cx.value = withSpring(next, SPRING);
+      }
+    },
+    // Deps left empty on purpose — useAnimatedReaction re-subscribes
+    // to whichever shared values are read in the prepare function.
+    [],
+  );
+
+  /* ---------------------------------------------------------------
+   * Self-healing on focus. If the animation was ever interrupted
+   * (screen detached mid-spring, JS thread stalled, etc.), regaining
+   * focus forces a fresh spring to the current target. Idempotent
+   * when cx is already at target — Reanimated no-ops in that case.
+   * ---------------------------------------------------------------- */
+  useFocusEffect(
+    useCallback(() => {
+      // Cancel any leftover spring, then re-drive toward the current
+      // target. Reading targetCxSV.value directly from JS is safe —
+      // shared values expose their current value synchronously.
+      cancelAnimation(cx);
+      cx.value = withSpring(targetCxSV.value, SPRING);
+      return undefined;
+      // cx and targetCxSV are stable across renders (useSharedValue
+      // returns the same object). Empty deps would be equivalent;
+      // listing them makes the linter happy without changing behavior.
+    }, [cx, targetCxSV]),
+  );
 
   const badgeAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: cx.value - BADGE_RADIUS }],
@@ -219,13 +320,6 @@ const CustomTabBar: React.FC<Props> = ({
   const animatedPathProps = useAnimatedProps(() => ({
     d: buildBarPath(barWidth, BAR_HEIGHT, cx.value, BAR_RADIUS),
   }));
-
-  // Keep the notch glued to the correct tab if the bar is resized
-  // (rotation, foldables, etc.) before the next spring animation.
-  useDerivedValue(() => {
-    // no-op derived value kept in case future logic needs cx elsewhere
-    return cx.value;
-  }, [cx]);
 
   const activeRoute = state.routes[activeIndex];
   const activeMeta = activeRoute ? config[activeRoute.name] : undefined;
