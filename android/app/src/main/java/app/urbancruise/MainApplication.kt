@@ -1,4 +1,4 @@
-package com.pinaak
+package app.urbancruise
 
 import android.app.Application
 import com.facebook.react.PackageList

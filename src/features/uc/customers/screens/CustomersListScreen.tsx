@@ -28,7 +28,6 @@ import {
 const CustomersListScreen: React.FC = () => {
   const navigation = useNavigation();
   const [search, setSearch] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
   const [page, setPage] = useState(1);
 
   const [filters, setFilters] = useState<CustomerFilters>(
@@ -68,17 +67,14 @@ const CustomersListScreen: React.FC = () => {
       <View style={styles.headerWrap}>
         <CustomerListHeader
           onBack={() => navigation.goBack()}
-          onSearch={() => setShowSearch(v => !v)}
           onFilter={openFilterSheet}
           filterBadgeCount={badgeCount}
         />
-        {showSearch && (
-          <SearchBar
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search by name, phone, email"
-          />
-        )}
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search by name, phone, email"
+        />
       </View>
 
       {error ? (

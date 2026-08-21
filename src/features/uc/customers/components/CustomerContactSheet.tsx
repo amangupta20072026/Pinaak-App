@@ -158,10 +158,14 @@ const SheetContent: React.FC<ContentProps> = ({
       <Pressable
         onPress={onClose}
         hitSlop={12}
-        style={styles.closeBtn}
+        accessibilityRole="button"
         accessibilityLabel="Close"
+        style={({ pressed }) => [
+          styles.closeBtn,
+          pressed && { transform: [{ scale: 0.94 }], opacity: 0.9 },
+        ]}
       >
-        <X size={20} color={Colors.textPrimary} />
+        <X size={16} color="#FFFFFF" strokeWidth={2.5} />
       </Pressable>
 
       {/* IDENTITY */}
@@ -316,8 +320,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Spacing.sm,
     right: Spacing.md,
-    padding: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF5A5F',
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 2,
+    ...Shadows.xs,
   },
 
   /* Identity */
