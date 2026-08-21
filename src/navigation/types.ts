@@ -131,6 +131,20 @@ export type UcStackParamList = {
   PayoutDetail: { entryId: string };
   NotificationCentre: undefined;
   Support: undefined;
+
+  // -----------------------------------------------------------------
+  // More-sheet destinations. Placeholder ComingSoon screens for now;
+  // real screens will land here without touching the navigator wiring
+  // — each route already has a home in `features/uc/<domain>/`.
+  // -----------------------------------------------------------------
+  Profile: undefined;
+  Settings: undefined;
+  VendorsList: undefined;
+  Payments: undefined;
+  DriversList: undefined;
+  Issues: undefined;
+  Performance: undefined;
+  Feedback: undefined;
 };
 
 export type UcTabParamList = {

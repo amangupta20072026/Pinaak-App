@@ -57,12 +57,18 @@ export function useMoreActions() {
     (actionId: MoreActionId): void => {
       switch (actionId) {
         /* ---- Shared ---- */
+        //
+        // NOTE (UC-only wiring): these shared routes (Profile,
+        // Settings, Feedback) are currently registered ONLY in the
+        // UC stack (as ComingSoon placeholders). `navigate` resolves
+        // them against the currently mounted role stack — so tapping
+        // Profile from a customer/vendor/driver role will silently
+        // no-op until each role's navigator also declares + registers
+        // these screens. This matches the current product scope:
+        // build UC first, other roles later.
+        //
         case 'profile':
-          // TODO: declare 'Profile' in each role's ParamList, register
-          // the screen in each role navigator, then `navigate('Profile')`.
-          // (No `as never` needed after `NavigationService.navigate`
-          // was widened to accept any declared route.)
-          noop();
+          navigate('Profile');
           return;
 
         case 'notifications':
@@ -81,14 +87,11 @@ export function useMoreActions() {
           return;
 
         case 'feedback':
-          // TODO: point at a dedicated Feedback screen once it exists.
-          // Routed to Support for now so the UC "More" sheet has a
-          // working destination.
-          noop();
+          navigate('Feedback');
           return;
 
         case 'settings':
-          noop();
+          navigate('Settings');
           return;
 
         case 'logout':
@@ -132,11 +135,23 @@ export function useMoreActions() {
           return;
 
         case 'uc.vendors':
+          navigate('VendorsList');
+          return;
+
         case 'uc.payments':
+          navigate('Payments');
+          return;
+
         case 'uc.drivers':
+          navigate('DriversList');
+          return;
+
         case 'uc.issues':
+          navigate('Issues');
+          return;
+
         case 'uc.performance':
-          noop();
+          navigate('Performance');
           return;
 
         default: {

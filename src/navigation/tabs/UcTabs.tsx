@@ -13,13 +13,22 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { UcDashboardScreen } from '@features/uc/dashboard';
+import { QuotationsScreen } from '@features/uc/quotations';
+import { BookingsScreen } from '@features/uc/bookings';
+import { TripsScreen } from '@features/uc/trips';
 
 import type { UcTabParamList } from '../types';
 import { MORE_ROUTE_NAME, useMoreTabController } from './shared';
 
 const Tab = createBottomTabNavigator<UcTabParamList>();
 
-const PlaceholderScreen: React.FC = () => null;
+/**
+ * The More tab is a synthetic route — tapping it opens the MoreSheet
+ * rather than navigating to a screen. It still needs a component to
+ * satisfy the navigator; a null-returning stub is intentional here
+ * (see openMoreListeners / renderTabBar for the real behaviour).
+ */
+const MoreTabStub: React.FC = () => null;
 
 const UcTabs: React.FC = () => {
   const {
@@ -38,12 +47,12 @@ const UcTabs: React.FC = () => {
         tabBar={renderTabBar}
       >
         <Tab.Screen name="Dashboard" component={UcDashboardScreen} />
-        <Tab.Screen name="Quotations" component={PlaceholderScreen} />
-        <Tab.Screen name="Bookings" component={PlaceholderScreen} />
-        <Tab.Screen name="Trips" component={PlaceholderScreen} />
+        <Tab.Screen name="Quotations" component={QuotationsScreen} />
+        <Tab.Screen name="Bookings" component={BookingsScreen} />
+        <Tab.Screen name="Trips" component={TripsScreen} />
         <Tab.Screen
           name={MORE_ROUTE_NAME}
-          component={PlaceholderScreen}
+          component={MoreTabStub}
           listeners={openMoreListeners}
         />
       </Tab.Navigator>
