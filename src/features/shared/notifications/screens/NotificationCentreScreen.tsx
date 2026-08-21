@@ -1,14 +1,24 @@
 /**
  * ------------------------------------------------------------------
- * NotificationCentreScreen (UC) — STACK SCREEN
+ * NotificationCentreScreen — SHARED, STACK SCREEN
  * ------------------------------------------------------------------
- * Pushed from the UC More sheet, and also from the bell icon on the
- * dashboard header. Placeholder until the real notification list +
- * read/unread + deep-link handlers ship.
+ * Cross-role placeholder for the notification centre. Reached from:
+ *   - the More sheet's "Notifications" tile (every role)
+ *   - the bell icon on role dashboards (e.g. UC DashboardHeader)
  *
- * Note: this replaces the NotImplementedScreen ghost registered on
- * the "NotificationCentre" route in UcNavigator. Same route name —
- * no caller changes required.
+ * Real UI will surface the notification list + read/unread + deep
+ * links into role-appropriate destinations.
+ *
+ * REGISTRATION:
+ *   Every role stack registers this component under the route name
+ *   "NotificationCentre" (previously the same name was registered
+ *   against NotImplementedScreen as a dev ghost — this real screen
+ *   replaces that mapping wherever the ComingSoon UX is desired).
+ *
+ * WHY IT LIVES IN /shared/:
+ *   Notifications behave the same for every role today. Role-aware
+ *   filtering, if needed later, is a branch inside this component
+ *   (via role from Redux) — not a per-role fork.
  * ------------------------------------------------------------------
  */
 

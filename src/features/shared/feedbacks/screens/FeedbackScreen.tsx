@@ -1,9 +1,23 @@
 /**
  * ------------------------------------------------------------------
- * FeedbackScreen (UC) — STACK SCREEN
+ * FeedbackScreen — SHARED, STACK SCREEN
  * ------------------------------------------------------------------
- * Pushed from the UC More sheet. Placeholder until the feedback
- * form (rating, comments, attachments) ships.
+ * Cross-role placeholder for the feedback form. Reached from every
+ * role's More sheet ("Feedback" tile). Real UI will collect a
+ * rating, free-text comments, optional attachments, and post to the
+ * feedback endpoint.
+ *
+ * REGISTRATION:
+ *   Mounted by EACH role's navigator. Route name "Feedback" must
+ *   exist in each role's stack ParamList so
+ *   `navigate('Feedback')` from useMoreActions.ts resolves in every
+ *   role context.
+ *
+ * FOLDER NAMING:
+ *   Lives under `shared/feedbacks/` (plural) to match the existing
+ *   sibling folders (`shared/reviews/`, `shared/notifications/`) —
+ *   a category folder, not a single-item folder. The route name and
+ *   component name stay singular ("Feedback" / FeedbackScreen).
  * ------------------------------------------------------------------
  */
 
