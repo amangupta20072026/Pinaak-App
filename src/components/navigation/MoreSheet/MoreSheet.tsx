@@ -19,13 +19,15 @@
  *      the overflow by scrolling internally, as intended.
  *      (Ref: https://gorhom.dev/react-native-bottom-sheet/dynamic-sizing)
  *
- *   2. IDEMPOTENT IMPERATIVE API.
+ *   2. IDEMPOTENT & RACE-SAFE IMPERATIVE API.
  *      `present()` / `dismiss()` are safe to call at any time in any
- *      order. An internal state ref (`gestureStateRef`) tracks the
- *      real sheet phase (closed | opening | opened | closing) and
- *      short-circuits redundant / racing calls. This is what makes
- *      the sheet survive rapid double-taps and mid-animation
- *      interruptions.
+ *      order. All animation-phase transitions and user-intent queuing
+ *      go through a pure reducer (`sheetReducer.ts`) with test
+ *      coverage. If a call arrives mid-animation it's QUEUED and
+ *      drained the moment the animation settles — animations are
+ *      never interrupted, intents are never rejected. This is what
+ *      makes the sheet survive rapid double-taps and the "tab bar
+ *      and sheet visibility disagree" class of bug.
  *
  *   3. ACTIONS FIRE POST-DISMISS.
  *      When the user taps a menu item, we DO NOT navigate synchronously.
@@ -114,15 +116,29 @@ import {
   type MoreRole,
 } from './moreMenuConfig';
 import { useMoreActions } from './useMoreActions';
+import {
+  INITIAL_SHEET_STATE,
+  reduceSheet,
+  type SheetEvent,
+  type SheetState,
+} from './sheetReducer';
 
 /* =================================================================
  * Public ref API
  * ================================================================= */
 
 export type MoreSheetRef = {
-  /** Returns true if the sheet actually began presenting, false if it was rejected (already open, or mid-animation). */
-  present: () => boolean;
-  /** Idempotent — safe to call when already closed or mid-animation. */
+  /**
+   * Request the sheet to open. Idempotent and race-safe: if the
+   * sheet is currently animating (opening or closing) the intent is
+   * queued and executed as soon as the in-flight animation settles.
+   * See `sheetReducer.ts` for the full state machine.
+   */
+  present: () => void;
+  /**
+   * Request the sheet to close. Same semantics as `present`: safe to
+   * call at any time in any order, queues if mid-animation.
+   */
   dismiss: () => void;
 };
 
@@ -164,9 +180,6 @@ const withAlpha = (hex: string, alpha: number): string => {
   return `${hex}${suffix}`;
 };
 
-/** Internal sheet phase — used to guard against racing operations. */
-type SheetPhase = 'closed' | 'opening' | 'opened' | 'closing';
-
 /* =================================================================
  * Component
  * ================================================================= */
@@ -184,12 +197,92 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
     const snapPoints = useMemo(() => ['60%'], []);
 
     /* ---------------------------------------------------------------
-     * State machine — guards against racing present()/dismiss() calls.
-     * Also used by handleDismiss to fire pending action AFTER the
-     * closing animation is fully complete.
+     * Intent-queue state machine.
+     *
+     * All animation-phase and user-intent transitions go through
+     * `dispatch()` → `reduceSheet()` (pure, tested). Side-effects
+     * that the reducer requests ('call_present' / 'call_dismiss')
+     * are applied here by calling into gorhom's imperative API.
+     *
+     * The core invariant this fixes:
+     *   - Animations are NEVER interrupted mid-flight (both attempts
+     *     to do so — the original "allow reverse" and the later
+     *     "reject during animation" — produced their own bugs).
+     *   - User intents are NEVER rejected. If one arrives during an
+     *     animation, it's queued and drained the moment the animation
+     *     settles.
+     *
+     * See `sheetReducer.ts` for the full transition table and
+     * `__tests__/sheetReducer.test.ts` for the scenario coverage.
      * ---------------------------------------------------------------- */
-    const gestureStateRef = useRef<SheetPhase>('closed');
+    const stateRef = useRef<SheetState>(INITIAL_SHEET_STATE);
     const pendingActionRef = useRef<MoreActionId | null>(null);
+
+    /**
+     * Watchdog — arms whenever we transition into a transient phase
+     * ('opening' or 'closing') and fires if we don't hear back from
+     * gorhom within a generous budget. Guards against silent native-
+     * side drops (rare, but observed when the app is backgrounded
+     * mid-animation). When it fires we hard-reset state.
+     */
+    const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const clearWatchdog = useCallback(() => {
+      if (watchdogRef.current) {
+        clearTimeout(watchdogRef.current);
+        watchdogRef.current = null;
+      }
+    }, []);
+
+    /**
+     * Dispatch is defined via ref so it can call itself recursively
+     * (a settle event whose side effect calls back into the machine)
+     * without needing to close over its own identity — and so all
+     * memoized callbacks (openMoreListeners, handleChange, …) can
+     * capture a stable reference.
+     */
+    const dispatchRef = useRef<(event: SheetEvent) => void>(() => {});
+    dispatchRef.current = (event: SheetEvent): void => {
+      const { state: next, sideEffect } = reduceSheet(stateRef.current, event);
+      stateRef.current = next;
+
+      // Watchdog lifecycle mirrors phase transitions.
+      if (next.phase === 'opening' || next.phase === 'closing') {
+        clearWatchdog();
+        watchdogRef.current = setTimeout(() => {
+          if (__DEV__) {
+            console.warn(
+              '[MoreSheet] Animation watchdog fired — forcing RESET. ' +
+                'Sheet was stuck in phase=%s for >2s. This usually means ' +
+                'gorhom dropped an onChange callback (backgrounded mid-anim?).',
+              next.phase,
+            );
+          }
+          dispatchRef.current({ type: 'RESET' });
+        }, 2000);
+      } else {
+        clearWatchdog();
+      }
+
+      // Apply side effects. These call back into gorhom which will
+      // eventually fire onChange, producing another dispatch.
+      if (sideEffect === 'call_present') {
+        sheetRef.current?.present();
+      } else if (sideEffect === 'call_dismiss') {
+        sheetRef.current?.dismiss();
+      }
+    };
+
+    /* ---------------------------------------------------------------
+     * Idempotent imperative API — thin adapter over dispatch.
+     * ---------------------------------------------------------------- */
+    useImperativeHandle(
+      ref,
+      () => ({
+        present: () => dispatchRef.current({ type: 'PRESENT' }),
+        dismiss: () => dispatchRef.current({ type: 'DISMISS' }),
+      }),
+      [],
+    );
 
     /* ---------------------------------------------------------------
      * Latest-callback refs.
@@ -211,35 +304,6 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
     }, [onOpenChange]);
 
     /* ---------------------------------------------------------------
-     * Idempotent imperative API.
-     * ---------------------------------------------------------------- */
-    useImperativeHandle(
-      ref,
-      () => ({
-        present: (): boolean => {
-          // Only allow present from a fully-settled 'closed' state. Presenting
-          // during 'closing' races the gorhom modal's dismiss animation and
-          // can leave the state machine stuck at 'opening' with no visible
-          // sheet — the "tab bar shows More, screen shows Home" bug.
-          const phase = gestureStateRef.current;
-          if (phase !== 'closed') return false;
-          gestureStateRef.current = 'opening';
-          sheetRef.current?.present();
-          return true;
-        },
-        dismiss: () => {
-          // Ignore dismiss while animating in either direction. onChange will
-          // settle phase soon; the next tap will resolve cleanly.
-          const phase = gestureStateRef.current;
-          if (phase !== 'opened') return;
-          gestureStateRef.current = 'closing';
-          sheetRef.current?.dismiss();
-        },
-      }),
-      [],
-    );
-
-    /* ---------------------------------------------------------------
      * Cleanup on unmount — if the sheet unmounts while animating
      * (rare, but happens on logout / role swap), force-clear internal
      * state and signal the parent BOTH channels:
@@ -256,14 +320,15 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * ---------------------------------------------------------------- */
     useEffect(() => {
       return () => {
+        clearWatchdog();
         pendingActionRef.current = null;
-        gestureStateRef.current = 'closed';
+        dispatchRef.current({ type: 'RESET' });
         onOpenChangeRef.current?.(false);
         onDismissedWithoutActionRef.current?.();
       };
       // Empty deps — cleanup fires ONLY on unmount. Refs above give
       // us the latest callbacks without needing them in the dep list.
-    }, []);
+    }, [clearWatchdog]);
 
     /* ---------------------------------------------------------------
      * Backdrop — dims content above the sheet.
@@ -311,39 +376,36 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      *
      * Sequence:
      *   1. Stash actionId in ref.
-     *   2. Call dismiss() (state → 'closing').
-     *   3. handleChange fires with -1 → phase becomes 'closed'.
+     *   2. Dispatch DISMISS — the reducer decides whether to call
+     *      sheet.dismiss() now (if opened) or queue it (if opening).
+     *   3. handleChange fires with -1 → reducer transitions to closed.
      *   4. handleDismiss runs the stashed action AFTER interactions
      *      settle → no animation clash, no orphan sheet.
      * ---------------------------------------------------------------- */
     const handleItemPress = useCallback((item: MoreItem) => {
-      console.log('[SHEET] handleItemPress', item.actionId);
       pendingActionRef.current = item.actionId;
-      if (gestureStateRef.current !== 'closing') {
-        gestureStateRef.current = 'closing';
-        sheetRef.current?.dismiss();
-      }
+      dispatchRef.current({ type: 'DISMISS' });
     }, []);
 
     /* ---------------------------------------------------------------
-     * onChange — authoritative source for phase. Fires when the sheet
-     * finishes its animation (open OR close).
+     * onChange — authoritative source for phase settle events. Fires
+     * when gorhom's internal animation reaches an integer snap index
+     * (0 = opened, -1 = closed). Feeds the reducer with SETTLED_*
+     * events which drive both phase transitions and the drain-on-
+     * settle logic for queued intents.
      *
-     * IMPORTANT: this is where we notify the parent that the sheet is
-     * VISUALLY open/closed. We deliberately do NOT signal
-     * `onDismissedWithoutAction` from here on close — even for the
-     * "user tapped a menu item" path, onChange(-1) fires before we
-     * know whether the pending action was navigational. Release of
-     * the visual override is gated on handleDismiss (which knows).
+     * We also mirror the visible state to the parent via onOpenChange.
+     * IMPORTANT: this only signals "sheet is visible" — release of the
+     * tab bar's visual override is gated on handleDismiss (which knows
+     * whether an action was pending).
      * ---------------------------------------------------------------- */
     const handleChange = useCallback(
       (index: number) => {
-        console.log('[SHEET] onChange index=', index);
         if (index >= 0) {
-          gestureStateRef.current = 'opened';
+          dispatchRef.current({ type: 'SETTLED_OPEN' });
           onOpenChange?.(true);
         } else {
-          gestureStateRef.current = 'closed';
+          dispatchRef.current({ type: 'SETTLED_CLOSED' });
           onOpenChange?.(false);
         }
       },
@@ -382,11 +444,9 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * animation-timing story.
      * ---------------------------------------------------------------- */
     const handleDismiss = useCallback(() => {
-      console.log(
-        '[SHEET] onDismiss (animation-complete), pendingAction=',
-        pendingActionRef.current,
-      );
-      gestureStateRef.current = 'closed';
+      // Note: `phase` has already been set to 'closed' by the
+      // preceding SETTLED_CLOSED dispatch from handleChange. This
+      // callback only owns the pending-action side of things.
       onOpenChange?.(false);
 
       const action = pendingActionRef.current;

@@ -20,13 +20,15 @@
  *      tapped, react-navigation navigates normally.
  *   2. The More tab's per-screen listener (`openMoreListeners`)
  *      preventDefaults and calls `moreSheetRef.current?.present()`.
- *      That is the ONLY place the sheet is opened.
+ *      That is the ONLY place the sheet is opened. The sheet's
+ *      intent-queue reducer (`MoreSheet/sheetReducer.ts`) guarantees
+ *      this call always eventually results in the sheet being visible
+ *      — even if it lands mid-animation.
  *   3. `screenListeners.tabPress` on the Tab.Navigator is attached
  *      to every screen. For each firing it inspects the tapped
  *      route's name; if it is NOT the More tab, it dismisses the
- *      sheet. Dismiss is idempotent (guarded by the state machine
- *      inside MoreSheet), so it is safe when the sheet is already
- *      closed.
+ *      sheet. Dismiss is idempotent (guarded by the same reducer),
+ *      so it is safe when the sheet is already closed.
  *
  * ------------------------------------------------------------------
  * VISUAL-OVERRIDE STATE MODEL (bug fix — READ BEFORE EDITING):
@@ -207,7 +209,7 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
        * react-freeze's freeze/thaw cycle races with react-navigation's
        * focus transitions and leaves tab subtrees paused after re-focus,
        * rendering blank content. See <link to your bug tracker issue>.
-       * Re-enable only after react-freeze issue X is fixed, or after
+       * Re-enable only after react-freeze issue is fixed, or after
        * migrating to react-native-screens' native-side freezing.
        */
       freezeOnBlur: false as const,
@@ -218,17 +220,21 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
   /* ---------------------------------------------------------------
    * More tab press — preventDefault + present sheet. Also arms the
    * visual override so the badge/notch slides to More.
+   *
+   * IMPORTANT: We unconditionally set `keepMoreVisualActive = true`
+   * BEFORE calling present(). The sheet's intent-queue reducer
+   * (`MoreSheet/sheetReducer.ts`) guarantees this present() intent
+   * will eventually execute — either now (if the sheet is closed) or
+   * queued and drained when any in-flight animation settles. The
+   * visual override therefore always reflects the user's LATEST
+   * intent, which is what the tab bar should show.
    * ---------------------------------------------------------------- */
   const openMoreListeners = useMemo(
     () => ({
       tabPress: (e: { preventDefault: () => void }) => {
         e.preventDefault();
-        // Only arm the visual override if the sheet actually presented.
-        // If we're mid-animation (present() rejects), we must NOT set the
-        // override — otherwise the tab bar shows More active with no
-        // sheet visible and no destination screen, until the next tap.
-        const opened = moreSheetRef.current?.present();
-        if (opened) setKeepMoreVisualActive(true);
+        setKeepMoreVisualActive(true);
+        moreSheetRef.current?.present();
       },
     }),
     [],
