@@ -22,6 +22,7 @@ import CustomerTabs from './tabs/CustomerTabs';
 import type { CustomerStackParamList } from './types';
 import { NotImplementedScreen } from '@features/shared/screens';
 import SupportScreen from '@features/shared/support/screens/SupportScreen';
+import { CustomerFeedbackScreen } from '@features/customer/feedback';
 
 const Stack = createNativeStackNavigator<CustomerStackParamList>();
 
@@ -51,6 +52,10 @@ const CustomerNavigator: React.FC = () => {
       <Stack.Screen name="PayBalance" component={NotImplementedScreen} />
       <Stack.Screen name="GstInvoice" component={NotImplementedScreen} />
       <Stack.Screen name="Feedback" component={NotImplementedScreen} />
+      <Stack.Screen
+        name="CustomerFeedback"
+        component={CustomerFeedbackScreen}
+      />
       <Stack.Screen
         name="NotificationCentre"
         component={NotImplementedScreen}

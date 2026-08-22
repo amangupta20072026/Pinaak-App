@@ -23,9 +23,9 @@
  *     anywhere in the app — no `as never` casts needed.
  *   - Uses `useAppDispatch()` for redux (logout).
  *
- * ACTION RESULT CONTRACT (added — read before touching this file):
+ * ACTION RESULT CONTRACT (read before touching this file):
  *
- *   `run()` now returns a discriminated result:
+ *   `run()` returns a discriminated result:
  *
  *     'navigated' — the action pushed a screen or triggered a role
  *                   flow swap. The tabs screen containing MoreSheet
@@ -33,11 +33,6 @@
  *                   useMoreTabController) uses this signal to KEEP
  *                   the tab bar's "More is visually active" override
  *                   in place until the tabs screen actually blurs.
- *                   Releasing it any earlier causes the fixed bug:
- *                   for one frame between sheet dismiss and destination
- *                   mount, the badge/notch springs back to the
- *                   pre-More tab (e.g. Dashboard) and the destination-
- *                   less user briefly sees "wrong active tab."
  *
  *     'inline'    — the action did NOT navigate (a no-op today, or a
  *                   toggle / modal / clipboard write). The tabs screen
@@ -48,11 +43,22 @@
  *   Every case in the switch MUST return one of these two values.
  *   The exhaustiveness check at the bottom keeps that honest.
  *
- * TODO(future):
- *   - Some actionIds currently `noop()` because their target screens
- *     aren't declared in any ParamList yet (e.g. customer / vendor /
- *     driver entries). Once each gets a `navigate('ScreenName')`
- *     call, flip its return value from 'inline' to 'navigated'.
+ * SHARED-SCREEN REGISTRATION STATUS:
+ *   `Profile`, `Settings`, `NotificationCentre`, `Feedback` all live
+ *   in `features/shared/*` and are meant to be reused by every role.
+ *   For `navigate('Profile')` to actually push a screen, the current
+ *   role's navigator must REGISTER that route with a component.
+ *
+ *   Currently registered in:
+ *     - UC       ✅ (all four)
+ *     - Customer ✅ (Profile, Settings, NotificationCentre; Feedback
+ *                     is booking-scoped — see customer.feedback below)
+ *     - Vendor   ❌ (Profile / Settings / Notifications / Feedback all
+ *                     silently no-op)
+ *     - Driver   ❌ (same as Vendor)
+ *
+ *   To wire a new role, mirror the ComingSoon-registration block used
+ *   by UcNavigator / CustomerNavigator.
  * ------------------------------------------------------------------
  */
 
@@ -94,39 +100,18 @@ export function useMoreActions() {
   const run = useCallback(
     (actionId: MoreActionId): MoreActionResult => {
       switch (actionId) {
-        /* ---- Shared ---- */
-        //
-        // NOTE (UC-only wiring): these shared routes (Profile,
-        // Settings, Feedback) are currently registered ONLY in the
-        // UC stack (as ComingSoon placeholders). `navigate` resolves
-        // them against the currently mounted role stack — so tapping
-        // Profile from a customer/vendor/driver role will silently
-        // no-op until each role's navigator also declares + registers
-        // these screens. This matches the current product scope:
-        // build UC first, other roles later.
-        //
-        // We still return 'navigated' here because from the CALLER's
-        // perspective the intent was to navigate. When the target is
-        // not registered under the current stack and navigate silently
-        // no-ops, the tabs screen won't blur — so the useMoreTab-
-        // Controller has a defensive timeout fallback that clears the
-        // override if no blur occurs within one frame budget.
-        //
+        /* ---- Shared (Profile / Settings / Notifications / Feedback / Support / Logout) ---- */
         case 'profile':
           navigate('Profile');
           return 'navigated';
 
         case 'notifications':
-          // Every role stack declares & registers NotificationCentre
-          // (as a NotImplementedScreen placeholder until the real UI
-          // lands). Tapping the tile visibly navigates to the
-          // placeholder, which is better UX than a silent no-op.
           navigate('NotificationCentre');
           return 'navigated';
 
         case 'support':
           // Support is registered in AuthParamList and in every role
-          // stack. `navigate` (now widened) resolves it against the
+          // stack. `navigate` (widened) resolves it against the
           // currently mounted tree.
           navigate('Support');
           return 'navigated';
@@ -141,8 +126,8 @@ export function useMoreActions() {
 
         case 'logout':
           // Clear secure tokens first, then dispatch redux logout —
-          // RootNavigator will swap to AuthFlow automatically. That
-          // swap unmounts this whole role navigator, which triggers
+          // RootNavigator swaps to AuthFlow automatically. That swap
+          // unmounts this whole role navigator, which triggers
           // useMoreTabController's useFocusEffect cleanup and releases
           // the override anyway. Return 'navigated' so the visual
           // override holds during the swap transition.
@@ -151,16 +136,17 @@ export function useMoreActions() {
           return 'navigated';
 
         /* ---- Customer ---- */
-        case 'customer.invoices':
-        case 'customer.payment':
         case 'customer.referrals':
+          navigate('Referrals');
+          return 'navigated';
+
         case 'customer.feedback':
-          // TODO: point at dedicated screens once they exist. Referral
-          // & Rewards and Feedback are Engagement-section entries in
-          // the customer's More sheet. Until then these are true
-          // no-ops → 'inline' so the tab bar snaps back correctly.
-          noop();
-          return 'inline';
+          // General customer feedback — decoupled from the booking-
+          // scoped `Feedback` route (which requires a bookingId). The
+          // More-sheet "Feedback" tile lands here; post-trip rating
+          // uses the booking-scoped `Feedback` route independently.
+          navigate('CustomerFeedback');
+          return 'navigated';
 
         /* ---- Vendor ---- */
         case 'vendor.fleet':

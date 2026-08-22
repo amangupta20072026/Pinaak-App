@@ -32,8 +32,6 @@ import {
   LifeBuoy,
   Settings,
   User,
-  FileText,
-  CreditCard,
   Gift,
   ClipboardList,
   Truck,
@@ -77,8 +75,6 @@ export type MoreActionId =
   | 'feedback'
   | 'settings'
   | 'logout'
-  | 'customer.invoices'
-  | 'customer.payment'
   | 'customer.referrals'
   | 'customer.feedback'
   | 'vendor.fleet'
@@ -171,23 +167,6 @@ const customerMore: MoreItem[] = [
     color: Palette.slate,
     actionId: 'settings',
     group: 'account',
-  },
-
-  {
-    key: 'invoices',
-    label: 'Invoices',
-    Icon: FileText,
-    color: Palette.blue,
-    actionId: 'customer.invoices',
-    group: 'business',
-  },
-  {
-    key: 'payment',
-    label: 'Payment',
-    Icon: CreditCard,
-    color: Palette.purple,
-    actionId: 'customer.payment',
-    group: 'business',
   },
 
   {

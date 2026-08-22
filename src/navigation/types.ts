@@ -54,6 +54,9 @@ export type CustomerStackParamList = {
   Feedback: { bookingId: BookingId };
   NotificationCentre: undefined;
   Support: undefined;
+  // General customer feedback (from More sheet — no booking scope).
+  // Distinct from booking-scoped `Feedback` above.
+  CustomerFeedback: undefined;
 };
 
 export type CustomerTabParamList = {
