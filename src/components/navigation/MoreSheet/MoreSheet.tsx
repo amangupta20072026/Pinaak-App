@@ -218,6 +218,7 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
       () => ({
         present: () => {
           const phase = gestureStateRef.current;
+          console.log('[SHEET] present() called, phase=', phase, 'ref=', !!sheetRef.current);
           // Reject if already visible or in the process of becoming so.
           if (phase === 'opened' || phase === 'opening') return;
           gestureStateRef.current = 'opening';
@@ -225,6 +226,7 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
         },
         dismiss: () => {
           const phase = gestureStateRef.current;
+          console.log('[SHEET] dismiss() called, phase=', phase, new Error().stack?.split('\n').slice(1,4).join(' | '));
           if (phase === 'closed' || phase === 'closing') return;
           gestureStateRef.current = 'closing';
           sheetRef.current?.dismiss();
@@ -311,6 +313,7 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      *      settle → no animation clash, no orphan sheet.
      * ---------------------------------------------------------------- */
     const handleItemPress = useCallback((item: MoreItem) => {
+      console.log('[SHEET] handleItemPress', item.actionId);
       pendingActionRef.current = item.actionId;
       if (gestureStateRef.current !== 'closing') {
         gestureStateRef.current = 'closing';
@@ -331,6 +334,7 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * ---------------------------------------------------------------- */
     const handleChange = useCallback(
       (index: number) => {
+        console.log('[SHEET] onChange index=', index);
         if (index >= 0) {
           gestureStateRef.current = 'opened';
           onOpenChange?.(true);
@@ -374,6 +378,7 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * animation-timing story.
      * ---------------------------------------------------------------- */
     const handleDismiss = useCallback(() => {
+      console.log('[SHEET] onDismiss (animation-complete), pendingAction=', pendingActionRef.current);
       gestureStateRef.current = 'closed';
       onOpenChange?.(false);
 

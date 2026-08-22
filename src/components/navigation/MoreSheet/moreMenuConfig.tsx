@@ -461,7 +461,7 @@ const ucMore: MoreItem[] = [
     Icon: TrendingUp,
     color: Palette.purple,
     actionId: 'uc.performance',
-    group: 'insights',
+    group: 'operations',
   },
 
   {
