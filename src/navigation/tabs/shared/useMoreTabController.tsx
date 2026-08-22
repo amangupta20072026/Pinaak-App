@@ -28,33 +28,79 @@
  *      inside MoreSheet), so it is safe when the sheet is already
  *      closed.
  *
- *   The presenter (More per-screen listener) and the dismisser
- *   (Navigator-level screenListeners for every other route) are
- *   disambiguated by `route.name === MORE_ROUTE_NAME`, so they
- *   cannot both fire for the same tap. `MORE_ROUTE_NAME` is a
- *   typed constant so rename drift is caught by TypeScript.
+ * ------------------------------------------------------------------
+ * VISUAL-OVERRIDE STATE MODEL (bug fix — READ BEFORE EDITING):
+ * ------------------------------------------------------------------
  *
+ * The tab bar's "More is visually active" state is tracked by
+ * `keepMoreVisualActive`, NOT by `isMoreSheetOpen`. These two are
+ * deliberately DIFFERENT concerns:
+ *
+ *   isMoreSheetOpen         — is the sheet currently visible on screen?
+ *                              Used for logging / potential future UI.
+ *   keepMoreVisualActive    — should the tab bar render the badge/notch
+ *                              on the More tab? Owned by USER INTENT,
+ *                              not sheet lifecycle.
+ *
+ * WHY THE SPLIT (the bug this fixes):
+ *
+ *   Symptom: User taps More on the Dashboard tab, taps a menu item.
+ *   Between the sheet finishing its dismiss animation and the
+ *   destination screen mounting on top, the tab bar's badge / notch
+ *   springs back to the Dashboard tab for one frame — showing the
+ *   Dashboard icon in the floating badge and blanking the Dashboard
+ *   slot (icon-in-badge, slot-empty is how CustomTabBar draws the
+ *   ACTIVE tab). The user briefly sees "went back to Dashboard"
+ *   before the real destination screen mounts.
+ *
+ *   Root cause: React Nav v7's `tabPress` for More is
+ *   `e.preventDefault()`'d in `openMoreListeners`, so `state.index`
+ *   never changes when the user opens More. If the tab bar's visual
+ *   override is tied to `isMoreSheetOpen`, then the moment the sheet
+ *   dismisses (onChange(-1) → setIsMoreSheetOpen(false)) the tab
+ *   bar's `activeIndex` falls back to `state.index` — which is still
+ *   pointing at Dashboard because the More press was prevented.
+ *   Navigation to the destination screen only dispatches ONE FRAME
+ *   later (via requestAnimationFrame inside handleDismiss), so
+ *   there's a mandatory ~1-frame window where the tab bar is
+ *   "correctly" showing Dashboard — but the user is on their way
+ *   to a different screen and reads it as a bug.
+ *
+ * FIX:
+ *
+ *   Track `keepMoreVisualActive` separately. It becomes `true` when
+ *   the sheet opens, and STAYS true until one of these:
+ *
+ *     (A) The tabs screen blurs (destination mounted on top). The
+ *         useFocusEffect cleanup below clears it — but by then the
+ *         destination screen covers the tab bar, so the visual
+ *         change is unobservable.
+ *
+ *     (B) MoreSheet fires `onDismissedWithoutAction`, which happens
+ *         on backdrop tap / swipe down / hardware back / any menu
+ *         item whose action returned 'inline'. In those cases there
+ *         is no navigation coming, and releasing the override is the
+ *         correct behaviour: badge springs back to the real active
+ *         tab, which is where the user actually is.
+ *
+ *   `onOpenChange(false)` on its own does NOT release the override —
+ *   sheet visibility and visual-override lifecycle are decoupled by
+ *   design. See MoreSheet.tsx invariant #6 for the contract from
+ *   the other side.
+ *
+ * ------------------------------------------------------------------
  * FOCUS RECONCILIATION (self-healing invariant):
+ * ------------------------------------------------------------------
  *   When the tabs screen loses focus (a stack push from anywhere in
- *   the app — including "user tapped a menu item that navigates"),
- *   we force-close the sheet and clear `isMoreSheetOpen`. Rationale:
+ *   the app — including a menu-item navigate), we force-close the
+ *   sheet AND clear both `isMoreSheetOpen` and `keepMoreVisualActive`.
+ *   That is the (A) path above.
  *
- *     - Without this, if the sheet stays visually open across a
- *       navigation event (e.g. because handleDismiss ran but a
- *       re-render was skipped due to freezeOnBlur), the tab bar's
- *       `overrideActiveIndex` sticks at the More index. On return,
- *       the notch is stuck on More even though the real active tab
- *       is Dashboard.
- *     - `MoreSheet.dismiss()` is idempotent — safe to call even if
- *       already closed.
- *     - Setting `isMoreSheetOpen` false is idempotent too — React
- *       bails on same-value setState.
- *
- *   Combined with the UI-thread animation reaction inside
- *   CustomTabBar, this guarantees that after ANY navigation, the
- *   next focus of the tabs screen lands with the notch at the real
- *   active tab. See CustomTabBar's header comment for the other
- *   half of the fix.
+ *   On re-focus (user pops back), the initial focus run does the same
+ *   idempotent close/clear. Combined with the UI-thread reaction
+ *   inside CustomTabBar, this guarantees that after ANY navigation
+ *   the next focus of the tabs screen lands with the notch at the
+ *   real active tab.
  *
  * WHY A HOOK — role scalability:
  *   Every role-specific tab navigator (UcTabs, CustomerTabs,
@@ -132,8 +178,25 @@ export type MoreTabController = {
 
 export function useMoreTabController(role: MoreRole): MoreTabController {
   const moreSheetRef = useRef<MoreSheetRef>(null);
-  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const bottomInset = useTabBarFootprint();
+
+  /**
+   * Sheet-is-visible mirror. Informational — safe to consume from
+   * anywhere in the tree, but see the file header: this does NOT
+   * drive the tab bar's visual override.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+
+  /**
+   * Tab bar's "render badge/notch on the More tab" flag. Set true
+   * on sheet open, cleared on either:
+   *   - blur cleanup (destination mounted), or
+   *   - MoreSheet's onDismissedWithoutAction (no navigation coming).
+   * See the VISUAL-OVERRIDE STATE MODEL section in the file header
+   * for the full lifecycle.
+   */
+  const [keepMoreVisualActive, setKeepMoreVisualActive] = useState(false);
 
   const screenOptions = useMemo(
     () => ({
@@ -147,14 +210,6 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
        * keep running — only JSX re-rendering is deferred until the tab
        * is focused again.
        *
-       * Real-world impact for this app:
-       *   - UC dashboard's charts and revenue queries stop redrawing
-       *     while the user is on Bookings/Trips/Quotations. CPU + GPU
-       *     saved on every state tick that would have caused an
-       *     invisible re-render.
-       *   - When the user returns to Dashboard, it re-renders once
-       *     with the latest cached data — no stale UI, no re-fetch.
-       *
        * Safe here because no tab in this app relies on background
        * setState-driven animation (i.e. `setInterval` that ticks a
        * useState counter to move a UI element). If such a screen is
@@ -166,16 +221,51 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
     [],
   );
 
+  /* ---------------------------------------------------------------
+   * More tab press — preventDefault + present sheet. Also arms the
+   * visual override so the badge/notch slides to More.
+   * ---------------------------------------------------------------- */
   const openMoreListeners = useMemo(
     () => ({
       tabPress: (e: { preventDefault: () => void }) => {
         e.preventDefault();
+        // Arm the override BEFORE present() so the next render already
+        // has the correct activeIndex — no flicker from state.index →
+        // override transition on the frame the sheet appears.
+        setKeepMoreVisualActive(true);
         moreSheetRef.current?.present();
       },
     }),
     [],
   );
 
+  /* ---------------------------------------------------------------
+   * Sheet-open mirror. Only tracks visibility — does NOT touch the
+   * visual-override flag. See file header.
+   * ---------------------------------------------------------------- */
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsMoreSheetOpen(open);
+    // Intentionally not touching setKeepMoreVisualActive here.
+    // Its lifecycle is governed by open (via openMoreListeners) and
+    // by release (via handleDismissedWithoutAction / focus blur).
+  }, []);
+
+  /* ---------------------------------------------------------------
+   * MoreSheet signals this when the sheet closed WITHOUT navigation:
+   * user backdrop-tapped, swiped down, pressed hardware back, or
+   * tapped a menu item whose action returned 'inline'. That's our
+   * cue to release the visual override — the user isn't going
+   * anywhere, so the badge/notch should snap back to the real
+   * active tab immediately.
+   * ---------------------------------------------------------------- */
+  const handleDismissedWithoutAction = useCallback(() => {
+    setKeepMoreVisualActive(false);
+  }, []);
+
+  /* ---------------------------------------------------------------
+   * Non-More tab press → dismiss sheet. Presenter's tab (More) is
+   * exempted so present() and dismiss() cannot fire for the same tap.
+   * ---------------------------------------------------------------- */
   const screenListeners = useCallback(
     ({ route }: { route: TabRouteMinimal }) => ({
       tabPress: () => {
@@ -183,41 +273,40 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
         // would race with openMoreListeners.present() and collapse
         // the sheet instantly on every open.
         if (route.name === MORE_ROUTE_NAME) return;
-        // Idempotent thanks to MoreSheet's internal state machine.
+        // Non-More tap dismisses the sheet AND releases the override,
+        // because navigation to a sibling tab is imminent and the
+        // badge should already be moving toward the newly-tapped tab.
         moreSheetRef.current?.dismiss();
+        setKeepMoreVisualActive(false);
       },
     }),
     [],
   );
 
   /* ---------------------------------------------------------------
-   * Focus reconciliation — see file header. Runs whenever the tabs
-   * screen (the one that hosts this hook) transitions in/out of
-   * focus. Both the initial focus run AND the cleanup on blur do
-   * the same thing: force the sheet closed and reset the
-   * open-state flag, so no stack push can leave us with an orphan
-   * "sheet visually open, real navigation elsewhere" mismatch.
-   *
-   * useCallback with empty deps is intentional — the effect only
-   * needs to run on focus/blur transitions, never on prop changes.
+   * Focus reconciliation — see file header. The blur cleanup path
+   * is what releases the visual override when a menu-item tap
+   * navigates to a stack-pushed screen (customer detail, profile,
+   * etc.). By the time this fires, the destination screen has
+   * mounted on top of the tabs screen, so clearing the override is
+   * unobservable — no wrong-tab flash.
    * ---------------------------------------------------------------- */
   useFocusEffect(
     useCallback(() => {
-      // On focus: ensure the sheet is closed. If we're re-focusing
-      // after a stack pop, the sheet should have already been closed
-      // by handleItemPress → dismiss(), but this is defence-in-depth
-      // against edge cases (deep links, notification-driven nav,
-      // programmatic navigate calls that bypass the sheet).
+      // On focus: ensure everything is in a known-clean state. If we
+      // just popped back from a menu-item destination, the override
+      // has already been cleared by blur. This is defence in depth
+      // against deep-link / notification-driven entries that may
+      // land here with the sheet already presenting.
       moreSheetRef.current?.dismiss();
       setIsMoreSheetOpen(false);
+      setKeepMoreVisualActive(false);
 
       return () => {
-        // On blur: same idempotent close. This is what guarantees the
-        // notch snaps back to the real active tab on re-focus — with
-        // isMoreSheetOpen=false, overrideActiveIndex is undefined, so
-        // CustomTabBar tracks state.index directly.
+        // On blur: destination mounted. Clear everything.
         moreSheetRef.current?.dismiss();
         setIsMoreSheetOpen(false);
+        setKeepMoreVisualActive(false);
       };
     }, []),
   );
@@ -234,13 +323,18 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
         <CustomTabBar
           {...props}
           role={role}
+          // NOTE: this reads keepMoreVisualActive, NOT isMoreSheetOpen.
+          // That decoupling is what fixes the "wrong active tab flash
+          // between sheet dismiss and destination screen mount" bug.
+          // See the VISUAL-OVERRIDE STATE MODEL section in the file
+          // header before changing this line.
           overrideActiveIndex={
-            isMoreSheetOpen && moreIndex >= 0 ? moreIndex : undefined
+            keepMoreVisualActive && moreIndex >= 0 ? moreIndex : undefined
           }
         />
       );
     },
-    [isMoreSheetOpen, role],
+    [keepMoreVisualActive, role],
   );
 
   const MoreSheetElement = (
@@ -248,7 +342,8 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
       ref={moreSheetRef}
       role={role}
       bottomInset={bottomInset}
-      onOpenChange={setIsMoreSheetOpen}
+      onOpenChange={handleOpenChange}
+      onDismissedWithoutAction={handleDismissedWithoutAction}
     />
   );
 

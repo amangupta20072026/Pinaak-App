@@ -37,21 +37,6 @@
  *      flush its passive effects (including CustomTabBar's shared
  *      value sync) BEFORE the destination screen mounts on top.
  *
- *      An earlier revision used `InteractionManager.runAfterInter-
- *      actions` here, which React Native has since deprecated. We
- *      reverted to `requestAnimationFrame` because:
- *        - It is the RN-supported, non-deprecated primitive for
- *          "next frame after commit".
- *        - The tab bar's notch animation lives on the UI thread via
- *          `useAnimatedReaction`, and CustomTabBar's `useFocusEffect`
- *          re-drives the spring on every screen refocus. So even if
- *          navigation dispatches before the spring completes, the
- *          notch snaps to the correct target on return.
- *      `requestIdleCallback` (RN's newer suggested replacement for
- *      InteractionManager) is wrong for this use case — it fires
- *      when the JS thread is idle, which can be many frames later.
- *      Navigation should feel instant, not idle-deferred.
- *
  *   4. TAB BAR VISIBLE + INTERACTIVE.
  *      `bottomInset` = tab bar footprint. Sheet renders ABOVE the tab
  *      bar. Backdrop is contained within the sheet's inset container,
@@ -61,6 +46,40 @@
  *      Menu items come from `getMoreMenu(role)` — data only. Behavior
  *      lives in `useMoreActions.ts`. Neither depends on the other's
  *      internals.
+ *
+ *   6. VISUAL-OVERRIDE HANDOFF (bug-fix contract with parent).
+ *      The tab bar's "More is visually active" state (owned by the
+ *      parent via `overrideActiveIndex`) must persist THROUGH the
+ *      handoff to the destination screen — NOT through the sheet's
+ *      dismiss animation. Otherwise, for one frame between:
+ *
+ *        (a) onChange(-1) → parent flips isMoreSheetOpen false
+ *        (b) requestAnimationFrame → run(action) dispatches navigate
+ *        (c) destination screen mounts and covers the tab bar
+ *
+ *      the badge/notch springs back to the PRE-More tab (the tab that
+ *      was visually active before the user tapped More — Dashboard,
+ *      typically, since More's tabPress is preventDefaulted and never
+ *      changes state.index). That produces the visible "wrong active
+ *      tab flash" bug this contract exists to prevent.
+ *
+ *      Signalling model:
+ *        - `onOpenChange(true)`         — sheet became visible.
+ *        - `onDismissedWithoutAction()` — sheet closed AND no action
+ *                                         will run (backdrop tap,
+ *                                         swipe-down, hardware back,
+ *                                         or an 'inline' action that
+ *                                         did not navigate). Parent
+ *                                         releases the override now.
+ *        - `onOpenChange(false)` on its own means "sheet not visible"
+ *          for logging/telemetry — it does NOT authorise the parent
+ *          to release the override. Release is gated by either the
+ *          tabs-screen blur (destination mounted) or the explicit
+ *          `onDismissedWithoutAction` call above.
+ *
+ *      This split is what makes the visual state track the USER's
+ *      intent (which tab they're going to) rather than the SHEET's
+ *      lifecycle (a mechanical detail the user shouldn't perceive).
  * ==================================================================
  */
 
@@ -109,8 +128,25 @@ export type MoreSheetRef = {
 
 type Props = {
   role: MoreRole;
-  /** Fires when the sheet transitions between open and closed. */
+  /**
+   * Fires when the sheet transitions between visually open and closed.
+   * Informational only — does NOT authorise releasing the tab bar
+   * visual override. See invariant #6 in the file header.
+   */
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Fires when the sheet has closed AND no navigation is coming.
+   * Cases:
+   *   - Backdrop tap.
+   *   - Swipe-down / handle-drag close.
+   *   - Hardware back on Android.
+   *   - Menu-item tap whose action returned 'inline' (did not navigate).
+   *
+   * The parent (useMoreTabController) uses this as the signal to
+   * release the tab bar's "More visually active" override. See
+   * invariant #6.
+   */
+  onDismissedWithoutAction?: () => void;
   /**
    * Space below the sheet (tab bar footprint). Sheet renders above
    * this inset; tab bar stays visible and interactive underneath.
@@ -136,7 +172,7 @@ type SheetPhase = 'closed' | 'opening' | 'opened' | 'closing';
  * ================================================================= */
 
 const MoreSheet = forwardRef<MoreSheetRef, Props>(
-  ({ role, onOpenChange, bottomInset = 0 }, ref) => {
+  ({ role, onOpenChange, onDismissedWithoutAction, bottomInset = 0 }, ref) => {
     const sheetRef = useRef<BottomSheetModalType>(null);
     const items = useMemo(() => getMoreMenu(role), [role]);
     const grouped = useMemo(() => groupMoreMenu(items), [items]);
@@ -144,20 +180,6 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
 
     /* ---------------------------------------------------------------
      * Snap point — fixed 60% of screen, modal-style.
-     *
-     * The sheet is intentionally NOT content-fitted anymore. It opens
-     * to the same size every time regardless of role, giving it a
-     * consistent "modal" feel across roles.
-     *
-     *   - Roles with fewer items (customer/vendor/driver): the grid
-     *     sits at the top of the sheet; the remaining space is empty
-     *     but harmless — this is expected modal behaviour.
-     *   - Roles with more items (uc): if content exceeds 60%, the
-     *     inner BottomSheetScrollView takes over scrolling silently
-     *     (indicator hidden).
-     *
-     * Kept as a hard percentage — no measurement, no first-tap race
-     * with @gorhom v5's enableDynamicSizing.
      * ---------------------------------------------------------------- */
     const snapPoints = useMemo(() => ['60%'], []);
 
@@ -170,6 +192,25 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
     const pendingActionRef = useRef<MoreActionId | null>(null);
 
     /* ---------------------------------------------------------------
+     * Latest-callback refs.
+     *
+     * `onDismissedWithoutAction` is invoked from inside `handleDismiss`
+     * and from the unmount cleanup below. Both paths need the LATEST
+     * callback identity even though the containing memoised functions
+     * intentionally have stable deps. Ref-in-effect pattern keeps the
+     * memoisation and the freshness both correct.
+     * ---------------------------------------------------------------- */
+    const onDismissedWithoutActionRef = useRef(onDismissedWithoutAction);
+    useEffect(() => {
+      onDismissedWithoutActionRef.current = onDismissedWithoutAction;
+    }, [onDismissedWithoutAction]);
+
+    const onOpenChangeRef = useRef(onOpenChange);
+    useEffect(() => {
+      onOpenChangeRef.current = onOpenChange;
+    }, [onOpenChange]);
+
+    /* ---------------------------------------------------------------
      * Idempotent imperative API.
      * ---------------------------------------------------------------- */
     useImperativeHandle(
@@ -180,9 +221,6 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
           // Reject if already visible or in the process of becoming so.
           if (phase === 'opened' || phase === 'opening') return;
           gestureStateRef.current = 'opening';
-          // Guard against ref being null in edge cases (should never be,
-          // but defensive: if the modal hasn't attached yet, we bail
-          // silently — a subsequent tap will succeed once mounted.).
           sheetRef.current?.present();
         },
         dismiss: () => {
@@ -196,27 +234,29 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
     );
 
     /* ---------------------------------------------------------------
-     * Cleanup — if the sheet unmounts while animating (rare, but
-     * happens on logout / role swap), force-clear internal state so
-     * a future remount starts from a known-clean phase.
+     * Cleanup on unmount — if the sheet unmounts while animating
+     * (rare, but happens on logout / role swap), force-clear internal
+     * state and signal the parent BOTH channels:
      *
-     * We ALSO notify the parent via `onOpenChange(false)` so that any
-     * parent state that mirrors the sheet's open/closed status (e.g.
-     * `isMoreSheetOpen` in useMoreTabController, which drives the
-     * tab bar's `overrideActiveIndex`) is reset synchronously with
-     * the unmount. Without this, an unmount-while-open leaves the
-     * parent believing the sheet is still visible, and the tab bar
-     * keeps the notch overridden onto the More tab indefinitely.
+     *   - onOpenChange(false): mirror the visible state.
+     *   - onDismissedWithoutAction(): explicitly release the visual
+     *     override. Unmount is terminal — there is no action pending
+     *     that will ever run, so the parent must not stay "waiting
+     *     for blur." Without this, a logout while the sheet is
+     *     open-and-animating leaves isMoreSheetOpen / keepMoreVisual-
+     *     Active in the parent as `true` forever (until the parent
+     *     also unmounts, which does happen for logout — but not for
+     *     every unmount path we might add later).
      * ---------------------------------------------------------------- */
     useEffect(() => {
       return () => {
         pendingActionRef.current = null;
         gestureStateRef.current = 'closed';
-        onOpenChange?.(false);
+        onOpenChangeRef.current?.(false);
+        onDismissedWithoutActionRef.current?.();
       };
-      // onOpenChange is expected to be stable (setState from useState);
-      // intentionally empty deps so the cleanup fires only on unmount.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // Empty deps — cleanup fires ONLY on unmount. Refs above give
+      // us the latest callbacks without needing them in the dep list.
     }, []);
 
     /* ---------------------------------------------------------------
@@ -240,12 +280,6 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * FIX: Constrain the backdrop's bottom edge to end at
      * `bottomInset`. Below that, no backdrop → the tab bar
      * receives its own touches directly.
-     *
-     * ALSO: Wrap in a `pointerEvents="box-none"` guard so the known
-     * Android bug in v5.2.14 (invisible closed backdrop trapping
-     * touches after cold start, issue #2680) can never propagate
-     * through the tab bar area even if the backdrop's internal
-     * pointerEvents state gets stuck.
      * ---------------------------------------------------------------- */
     const backdropStyle = useMemo(
       () => ({ bottom: bottomInset }),
@@ -287,8 +321,13 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
     /* ---------------------------------------------------------------
      * onChange — authoritative source for phase. Fires when the sheet
      * finishes its animation (open OR close).
-     *   index >= 0 → sheet at that snap → phase = 'opened'
-     *   index === -1 → sheet fully dismissed → phase = 'closed'
+     *
+     * IMPORTANT: this is where we notify the parent that the sheet is
+     * VISUALLY open/closed. We deliberately do NOT signal
+     * `onDismissedWithoutAction` from here on close — even for the
+     * "user tapped a menu item" path, onChange(-1) fires before we
+     * know whether the pending action was navigational. Release of
+     * the visual override is gated on handleDismiss (which knows).
      * ---------------------------------------------------------------- */
     const handleChange = useCallback(
       (index: number) => {
@@ -307,49 +346,61 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * onDismiss — runs after the sheet is fully offscreen. Safe time
      * to dispatch navigation / redux side-effects.
      *
-     * We defer the action by ONE frame via `requestAnimationFrame` so
-     * React can commit any final post-dismissal state (phase →
-     * 'closed', backdrop unmounted, `isMoreSheetOpen` → false) and
-     * flush passive effects (CustomTabBar's targetCxSV shared-value
-     * sync) BEFORE we push the destination screen. This keeps the
-     * next screen's mount from interleaving with the sheet's
-     * teardown commit.
+     * Branches:
      *
-     * Why raf rather than InteractionManager or requestIdleCallback:
-     *   - `InteractionManager.runAfterInteractions` is deprecated in
-     *     recent React Native versions.
-     *   - `requestIdleCallback` (RN's official replacement) fires
-     *     when the JS thread is idle — potentially many frames later.
-     *     That is the wrong timing for "user tapped, act now".
-     *   - `requestAnimationFrame` fires at the start of the next
-     *     frame, after React has committed and effects have flushed.
-     *     That is the exact "one tick later" behaviour we want.
+     *   (a) No pending action — user cancelled (backdrop tap /
+     *       swipe / handle drag / hardware back). No navigation will
+     *       fire, so we RELEASE the visual override immediately:
+     *       badge/notch springs back to the real active tab, which
+     *       is the correct behaviour for a cancellation.
      *
-     * Safety net for the case where navigation dispatches before the
-     * tab bar's UI-thread spring animation can complete: CustomTabBar
-     * runs `useFocusEffect` that re-drives `cx.value = withSpring(
-     * targetCxSV.value)` every time the screen regains focus. So even
-     * if the destination screen covers UcTabs mid-spring and the
-     * shared value freezes at an intermediate position, focus after
-     * the user pops back snaps it to the correct target. This is the
-     * "self-healing UI" principle — timing precision here is nice to
-     * have, not load-bearing.
+     *   (b) Pending action, ran and returned 'navigated' — a screen
+     *       is about to mount. We do NOT call
+     *       onDismissedWithoutAction; the visual override is held by
+     *       the parent until the tabs screen blurs (destination
+     *       mounted). This prevents the pre-More tab from flashing
+     *       as active for the intermediate frame.
+     *
+     *   (c) Pending action, ran and returned 'inline' — action did
+     *       not navigate (e.g. placeholder no-op). Tabs won't blur,
+     *       so we must release the override manually, right after
+     *       the action ran.
+     *
+     * The action itself still runs inside `requestAnimationFrame` so
+     * React can commit the preceding onChange(-1) →
+     * `setIsMoreSheetOpen(false)` update and flush its passive
+     * effects before the destination screen mounts. See the
+     * companion comment in CustomTabBar for the other half of the
+     * animation-timing story.
      * ---------------------------------------------------------------- */
     const handleDismiss = useCallback(() => {
       gestureStateRef.current = 'closed';
       onOpenChange?.(false);
+
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
-      if (!action) return;
-      // Defer navigation by one frame so React can commit the
-      // preceding onChange(-1) → setIsMoreSheetOpen(false) update
-      // and flush its passive effects before the destination screen
-      // mounts. See the block comment above for the full rationale
-      // and why raf is safe with the current tab-bar architecture.
+
+      if (!action) {
+        // Cancellation path (a). No navigation coming — release override.
+        onDismissedWithoutAction?.();
+        return;
+      }
+
+      // Menu-item path. Defer by one frame so React commits the
+      // pre-dispatch state before we push the destination screen.
       requestAnimationFrame(() => {
-        run(action);
+        const result = run(action);
+        if (result === 'inline') {
+          // Path (c). No blur will happen. Release the override so
+          // the tab bar snaps back to the real active tab.
+          onDismissedWithoutAction?.();
+        }
+        // Path (b) — 'navigated': intentionally do nothing. The
+        // parent's useFocusEffect blur cleanup will release the
+        // override once the destination screen mounts and the tabs
+        // screen blurs.
       });
-    }, [onOpenChange, run]);
+    }, [onOpenChange, onDismissedWithoutAction, run]);
 
     return (
       <BottomSheetModal
@@ -364,48 +415,7 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
         onDismiss={handleDismiss}
         enablePanDownToClose
         stackBehavior="replace"
-        /**
-         * Gesture configuration — the standard iOS/Android modal
-         * pattern used by Gmail / Slack / Zoom bottom sheets.
-         *
-         *   enableOverDrag={false}
-         *     Locks the sheet's top edge at its snap point (60%).
-         *     Without this, gorhom defaults to true and lets the user
-         *     drag the sheet BEYOND its top snap, physically resizing
-         *     the sheet instead of scrolling the inner content. That
-         *     was the "sheet grows when I scroll up" bug.
-         *
-         *   enableContentPanningGesture={true} (default)
-         *     Keeps the coordinated pan-to-close behaviour: pulling
-         *     down on the content area when the ScrollView is already
-         *     at the top dismisses the sheet. When the ScrollView is
-         *     scrolled down, drags are delegated to it so scrolling
-         *     works naturally.
-         *
-         *   enableHandlePanningGesture={true} (default)
-         *     Drag handle at top can still be used to close the sheet.
-         *
-         * Net effect:
-         *   - Sheet stays fixed at 60%.
-         *   - Grid drag up  → BottomSheetScrollView scrolls (reveals
-         *                     hidden sections like SUPPORT).
-         *   - Grid drag down at top of scroll → sheet dismisses.
-         *   - Handle drag down → sheet dismisses.
-         *   - Backdrop tap → sheet dismisses.
-         */
         enableOverDrag={false}
-        /**
-         * enableDynamicSizing={false}
-         *
-         * v5 defaults this to `true`, which makes the sheet ignore
-         * `snapPoints` and resize itself to fit its content instead.
-         * That's the root cause of the "sheet becomes full screen
-         * once you scroll to a role with more groups" bug: content
-         * taller than 60% caused the library to grow the sheet to
-         * match it. Disabling this restores the fixed-60%-with-
-         * internal-scroll behaviour `snapPoints` was written for.
-         * Official guidance: https://gorhom.dev/react-native-bottom-sheet/dynamic-sizing
-         */
         enableDynamicSizing={false}
       >
         <BottomSheetScrollView
