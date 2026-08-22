@@ -152,7 +152,7 @@ type TabRouteMinimal = { name: string };
 
 export type MoreTabController = {
   /** Spread as `screenOptions` on the Tab.Navigator. */
-  screenOptions: { headerShown: false; freezeOnBlur: true };
+  screenOptions: { headerShown: false; freezeOnBlur: false };
   /** Pass as `screenListeners` on the Tab.Navigator. Dismisses the sheet on any non-More tabPress. */
   screenListeners: (args: { route: TabRouteMinimal }) => {
     tabPress: () => void;
@@ -202,21 +202,15 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
     () => ({
       headerShown: false as const,
       /**
-       * freezeOnBlur — react-navigation v7 + react-freeze integration.
-       *
-       * When a tab is not focused, React reconciliation for its subtree
-       * is paused. TanStack Query keeps updating its cache; Redux keeps
-       * dispatching; UI-thread animations (Reanimated, gesture-handler)
-       * keep running — only JSX re-rendering is deferred until the tab
-       * is focused again.
-       *
-       * Safe here because no tab in this app relies on background
-       * setState-driven animation (i.e. `setInterval` that ticks a
-       * useState counter to move a UI element). If such a screen is
-       * added later, hoist the animation to Reanimated (UI thread)
-       * or override this option per-screen with `freezeOnBlur: false`.
+       * freezeOnBlur DISABLED — do not re-enable without testing rapid
+       * tab switching. Under high-frequency taps (<200ms apart),
+       * react-freeze's freeze/thaw cycle races with react-navigation's
+       * focus transitions and leaves tab subtrees paused after re-focus,
+       * rendering blank content. See <link to your bug tracker issue>.
+       * Re-enable only after react-freeze issue X is fixed, or after
+       * migrating to react-native-screens' native-side freezing.
        */
-      freezeOnBlur: true as const,
+      freezeOnBlur: false as const,
     }),
     [],
   );
@@ -229,11 +223,12 @@ export function useMoreTabController(role: MoreRole): MoreTabController {
     () => ({
       tabPress: (e: { preventDefault: () => void }) => {
         e.preventDefault();
-        // Arm the override BEFORE present() so the next render already
-        // has the correct activeIndex — no flicker from state.index →
-        // override transition on the frame the sheet appears.
-        setKeepMoreVisualActive(true);
-        moreSheetRef.current?.present();
+        // Only arm the visual override if the sheet actually presented.
+        // If we're mid-animation (present() rejects), we must NOT set the
+        // override — otherwise the tab bar shows More active with no
+        // sheet visible and no destination screen, until the next tap.
+        const opened = moreSheetRef.current?.present();
+        if (opened) setKeepMoreVisualActive(true);
       },
     }),
     [],

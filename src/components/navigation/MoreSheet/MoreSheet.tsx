@@ -120,8 +120,8 @@ import { useMoreActions } from './useMoreActions';
  * ================================================================= */
 
 export type MoreSheetRef = {
-  /** Idempotent — safe to call when already open or mid-animation. */
-  present: () => void;
+  /** Returns true if the sheet actually began presenting, false if it was rejected (already open, or mid-animation). */
+  present: () => boolean;
   /** Idempotent — safe to call when already closed or mid-animation. */
   dismiss: () => void;
 };
@@ -216,18 +216,22 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
     useImperativeHandle(
       ref,
       () => ({
-        present: () => {
+        present: (): boolean => {
+          // Only allow present from a fully-settled 'closed' state. Presenting
+          // during 'closing' races the gorhom modal's dismiss animation and
+          // can leave the state machine stuck at 'opening' with no visible
+          // sheet — the "tab bar shows More, screen shows Home" bug.
           const phase = gestureStateRef.current;
-          console.log('[SHEET] present() called, phase=', phase, 'ref=', !!sheetRef.current);
-          // Reject if already visible or in the process of becoming so.
-          if (phase === 'opened' || phase === 'opening') return;
+          if (phase !== 'closed') return false;
           gestureStateRef.current = 'opening';
           sheetRef.current?.present();
+          return true;
         },
         dismiss: () => {
+          // Ignore dismiss while animating in either direction. onChange will
+          // settle phase soon; the next tap will resolve cleanly.
           const phase = gestureStateRef.current;
-          console.log('[SHEET] dismiss() called, phase=', phase, new Error().stack?.split('\n').slice(1,4).join(' | '));
-          if (phase === 'closed' || phase === 'closing') return;
+          if (phase !== 'opened') return;
           gestureStateRef.current = 'closing';
           sheetRef.current?.dismiss();
         },
@@ -378,7 +382,10 @@ const MoreSheet = forwardRef<MoreSheetRef, Props>(
      * animation-timing story.
      * ---------------------------------------------------------------- */
     const handleDismiss = useCallback(() => {
-      console.log('[SHEET] onDismiss (animation-complete), pendingAction=', pendingActionRef.current);
+      console.log(
+        '[SHEET] onDismiss (animation-complete), pendingAction=',
+        pendingActionRef.current,
+      );
       gestureStateRef.current = 'closed';
       onOpenChange?.(false);
 
